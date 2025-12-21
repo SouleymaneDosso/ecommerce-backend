@@ -1,0 +1,37 @@
+const Favorite = require("../models/Favorite");
+const Produits = require("../models/produits");
+
+// 🔹 Récupérer les favoris d’un utilisateur
+exports.getFavorites = async (req, res) => {
+  try {
+    const favorites = await Favorite.find({ userId: req.auth.userId })
+      .populate("productId"); // on récupère les infos produit
+    res.status(200).json(favorites);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// 🔹 Ajouter ou retirer un favori (toggle)
+exports.toggleFavorite = async (req, res) => {
+  try {
+    const { productId } = req.body;
+    if (!productId) return res.status(400).json({ message: "productId requis" });
+
+    const existing = await Favorite.findOne({ userId: req.auth.userId, productId });
+
+    if (existing) {
+      // Supprimer du favori
+      await Favorite.findByIdAndDelete(existing._id);
+      return res.status(200).json({ message: "Favori retiré", active: false });
+    }
+
+    // Ajouter au favori
+    const newFav = new Favorite({ userId: req.auth.userId, productId });
+    await newFav.save();
+    res.status(201).json({ message: "Favori ajouté", active: true });
+
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};

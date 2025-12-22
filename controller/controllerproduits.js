@@ -1,6 +1,4 @@
 const Produits = require("../models/produits");
-const fs = require("fs").promises;
-const path = require("path");
 
 // ===============================
 // AJOUTER UN PRODUIT
@@ -8,13 +6,22 @@ const path = require("path");
 exports.sauvegarderProduits = async (req, res) => {
   try {
     if (!req.body.produits) throw new Error("Aucune donnée produit envoyée");
-    if (!req.files || req.files.length === 0) throw new Error("Au moins une image est requise");
+    if (!req.files || req.files.length === 0)
+      throw new Error("Au moins une image est requise");
 
     const produitsAjouter = JSON.parse(req.body.produits);
 
-    const requiredFields = ["title", "description", "price", "stock", "genre", "categorie"];
+    const requiredFields = [
+      "title",
+      "description",
+      "price",
+      "stock",
+      "genre",
+      "categorie",
+    ];
     for (const field of requiredFields) {
-      if (!produitsAjouter[field]) throw new Error(`Le champ ${field} est obligatoire`);
+      if (!produitsAjouter[field])
+        throw new Error(`Le champ ${field} est obligatoire`);
     }
 
     // Convertir stockParVariation en nombres purs
@@ -23,15 +30,16 @@ exports.sauvegarderProduits = async (req, res) => {
       for (const size in produitsAjouter.stockParVariation) {
         variations[size] = {};
         for (const color in produitsAjouter.stockParVariation[size]) {
-          variations[size][color] = Number(produitsAjouter.stockParVariation[size][color]);
+          variations[size][color] = Number(
+            produitsAjouter.stockParVariation[size][color]
+          );
         }
       }
       produitsAjouter.stockParVariation = variations;
     }
 
-    const images = req.files.map(
-      (file) => `${req.protocol}://${req.get("host")}/images/${file.filename}`
-    );
+    // URLs Cloudinary
+    const images = req.files.map((file) => file.path);
 
     const produit = new Produits({
       ...produitsAjouter,
@@ -54,18 +62,20 @@ exports.sauvegarderProduits = async (req, res) => {
   }
 };
 
+// ===============================
+// AJOUTER UN COMMENTAIRE
+// ===============================
 exports.ajouterCommentaire = async (req, res) => {
   try {
     const { message, rating } = req.body;
-    if (!message || !rating) {
+    if (!message || !rating)
       return res.status(400).json({ message: "Message et note requis" });
-    }
 
     const produit = await Produits.findById(req.params.id);
     if (!produit) return res.status(404).json({ message: "Produit non trouvé" });
 
     const commentaire = {
-      user: req.auth.userId || "Anonyme", // ou le nom de l'utilisateur
+      user: req.auth.userId || "Anonyme",
       message,
       rating,
     };
@@ -80,18 +90,21 @@ exports.ajouterCommentaire = async (req, res) => {
   }
 };
 
+// ===============================
+// GET RECOMMANDATIONS
+// ===============================
 exports.getRecommendations = async (req, res) => {
   try {
     const produit = await Produits.findById(req.params.id);
     if (!produit) return res.status(404).json({ message: "Produit non trouvé" });
 
-    const prixMin = produit.price * 0.8; // 20% moins cher
-    const prixMax = produit.price * 1.2; // 20% plus cher
+    const prixMin = produit.price * 0.8;
+    const prixMax = produit.price * 1.2;
 
     const recommandations = await Produits.find({
       categorie: produit.categorie,
-      _id: { $ne: produit._id },      // exclure le produit actuel
-      price: { $gte: prixMin, $lte: prixMax } // prix proche
+      _id: { $ne: produit._id },
+      price: { $gte: prixMin, $lte: prixMax },
     }).limit(4);
 
     res.status(200).json(recommandations);
@@ -101,7 +114,9 @@ exports.getRecommendations = async (req, res) => {
   }
 };
 
-// Supprimer un commentaire par admin
+// ===============================
+// SUPPRIMER COMMENTAIRE PAR ADMIN
+// ===============================
 exports.supprimerCommentaire = async (req, res) => {
   try {
     const { produitId, commentaireId } = req.params;
@@ -109,7 +124,9 @@ exports.supprimerCommentaire = async (req, res) => {
     const produit = await Produits.findById(produitId);
     if (!produit) return res.status(404).json({ message: "Produit non trouvé" });
 
-    produit.commentaires = produit.commentaires.filter(c => c._id.toString() !== commentaireId);
+    produit.commentaires = produit.commentaires.filter(
+      (c) => c._id.toString() !== commentaireId
+    );
 
     await produit.save();
 
@@ -119,7 +136,6 @@ exports.supprimerCommentaire = async (req, res) => {
     res.status(500).json({ message: "Erreur lors de la suppression du commentaire" });
   }
 };
-
 
 // ===============================
 // TOUS LES PRODUITS
@@ -155,9 +171,17 @@ exports.updateProduit = async (req, res) => {
     if (!req.body.produits) throw new Error("Aucune donnée produit envoyée");
     const data = JSON.parse(req.body.produits);
 
-    const requiredFields = ["title", "description", "price", "stock", "genre", "categorie"];
+    const requiredFields = [
+      "title",
+      "description",
+      "price",
+      "stock",
+      "genre",
+      "categorie",
+    ];
     for (const field of requiredFields) {
-      if (!data[field]) throw new Error(`Le champ ${field} est obligatoire`);
+      if (!data[field])
+        throw new Error(`Le champ ${field} est obligatoire`);
     }
 
     delete data.userId;
@@ -181,30 +205,19 @@ exports.updateProduit = async (req, res) => {
       return res.status(403).json({ message: "Non autorisé" });
 
     // Images existantes envoyées depuis le frontend
-    const existingImages = req.body.existingImages ? JSON.parse(req.body.existingImages) : [];
-
-    // Supprimer les images retirées physiquement
-    for (const img of produit.imageUrl) {
-      if (!existingImages.includes(img)) {
-        const filename = img.split("/images/")[1];
-        const filePath = path.join("images", filename);
-        try {
-          await fs.unlink(filePath);
-        } catch (err) {
-          console.warn(`Impossible de supprimer ${filePath}: ${err.message}`);
-        }
-      }
-    }
+    const existingImages = req.body.existingImages
+      ? JSON.parse(req.body.existingImages)
+      : [];
 
     // Ajouter nouvelles images uploadées
-    const newImages = (req.files || []).map(
-      (file) => `${req.protocol}://${req.get("host")}/images/${file.filename}`
-    );
+    const newImages = (req.files || []).map((file) => file.path);
 
     // Combiner images existantes + nouvelles
     data.imageUrl = [...existingImages, ...newImages];
 
-    const updatedProduit = await Produits.findByIdAndUpdate(req.params.id, data, { new: true });
+    const updatedProduit = await Produits.findByIdAndUpdate(req.params.id, data, {
+      new: true,
+    });
 
     const io = req.app.get("io");
     io.emit("produitModifie", updatedProduit);
@@ -224,20 +237,6 @@ exports.updateProduit = async (req, res) => {
 // ===============================
 exports.deleteProduit = async (req, res) => {
   try {
-    const produit = await Produits.findById(req.params.id);
-    if (!produit) return res.status(404).json({ message: "Produit non trouvé" });
-
-    // Supprimer toutes les images physiquement
-    for (const img of produit.imageUrl) {
-      const filename = img.split("/images/")[1];
-      const filePath = path.join("images", filename);
-      try {
-        await fs.unlink(filePath);
-      } catch (err) {
-        console.warn(`Impossible de supprimer ${filePath}: ${err.message}`);
-      }
-    }
-
     await Produits.findByIdAndDelete(req.params.id);
 
     const io = req.app.get("io");

@@ -1,73 +1,36 @@
 const Produits = require("../models/produits");
 const cloudinary = require("../config/cloudinary");
 
-// ===============================
-// AJOUTER UN PRODUIT
-// ===============================
 exports.sauvegarderProduits = async (req, res) => {
   try {
-    if (!req.body.produits) throw new Error("Aucune donnée produit envoyée");
-    if (!req.files || req.files.length === 0)
-      throw new Error("Au moins une image est requise");
+    console.log("BODY:", req.body);
+    console.log("FILES reçus:", req.files.map(f => f.originalname));
 
-    const produitsAjouter = JSON.parse(req.body.produits);
+    if (!req.body.produits) return res.status(400).json({ message: "Données produit manquantes" });
 
-    const requiredFields = [
-      "title",
-      "description",
-      "price",
-      "stock",
-      "genre",
-      "categorie",
-    ];
-    for (const field of requiredFields) {
-      if (!produitsAjouter[field])
-        throw new Error(`Le champ ${field} est obligatoire`);
-    }
+    const data = JSON.parse(req.body.produits);
 
-    // Convertir stockParVariation en nombres purs
-    if (produitsAjouter.stockParVariation) {
-      const variations = {};
-      for (const size in produitsAjouter.stockParVariation) {
-        variations[size] = {};
-        for (const color in produitsAjouter.stockParVariation[size]) {
-          variations[size][color] = Number(
-            produitsAjouter.stockParVariation[size][color]
-          );
-        }
-      }
-      produitsAjouter.stockParVariation = variations;
-    }
+    if (!req.files || req.files.length === 0) return res.status(400).json({ message: "Au moins une image requise" });
 
-    // Upload images sur Cloudinary
-    const images = [];
-    for (const file of req.files) {
-      const uploaded = await cloudinary.uploader.upload(file.path, {
-        folder: "produits",
-      });
-      images.push(uploaded.secure_url);
-    }
+    // On prend les URLs Cloudinary générées par Multer
+    const images = req.files.map(f => f.path); 
 
     const produit = new Produits({
-      ...produitsAjouter,
+      ...data,
       userId: req.auth.userId,
       imageUrl: images,
     });
 
     await produit.save();
+    console.log("✅ Produit ajouté:", produit._id);
 
-    const io = req.app.get("io");
-    io.emit("produitAjoute", produit);
-
-    res.status(201).json({
-      message: "Produit enregistré avec succès !",
-      produit,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(400).json({ message: error.message });
+    res.status(201).json({ message: "Produit ajouté avec succès", produit });
+  } catch (err) {
+    console.error("🔥 ERREUR ajout produit:", err);
+    res.status(500).json({ message: err.message });
   }
 };
+
 
 // ===============================
 // AJOUTER UN COMMENTAIRE
@@ -79,7 +42,8 @@ exports.ajouterCommentaire = async (req, res) => {
       return res.status(400).json({ message: "Message et note requis" });
 
     const produit = await Produits.findById(req.params.id);
-    if (!produit) return res.status(404).json({ message: "Produit non trouvé" });
+    if (!produit)
+      return res.status(404).json({ message: "Produit non trouvé" });
 
     const commentaire = {
       user: req.auth.userId || "Anonyme",
@@ -103,7 +67,8 @@ exports.ajouterCommentaire = async (req, res) => {
 exports.getRecommendations = async (req, res) => {
   try {
     const produit = await Produits.findById(req.params.id);
-    if (!produit) return res.status(404).json({ message: "Produit non trouvé" });
+    if (!produit)
+      return res.status(404).json({ message: "Produit non trouvé" });
 
     const prixMin = produit.price * 0.8;
     const prixMax = produit.price * 1.2;
@@ -129,7 +94,8 @@ exports.supprimerCommentaire = async (req, res) => {
     const { produitId, commentaireId } = req.params;
 
     const produit = await Produits.findById(produitId);
-    if (!produit) return res.status(404).json({ message: "Produit non trouvé" });
+    if (!produit)
+      return res.status(404).json({ message: "Produit non trouvé" });
 
     produit.commentaires = produit.commentaires.filter(
       (c) => c._id.toString() !== commentaireId
@@ -140,7 +106,9 @@ exports.supprimerCommentaire = async (req, res) => {
     res.status(200).json({ message: "Commentaire supprimé avec succès" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Erreur lors de la suppression du commentaire" });
+    res
+      .status(500)
+      .json({ message: "Erreur lors de la suppression du commentaire" });
   }
 };
 
@@ -162,20 +130,23 @@ exports.getProduits = async (req, res) => {
 exports.getProduitById = async (req, res) => {
   try {
     const produit = await Produits.findById(req.params.id);
-    if (!produit) return res.status(404).json({ message: "Produit non trouvé" });
+    if (!produit)
+      return res.status(404).json({ message: "Produit non trouvé" });
 
     res.status(200).json(produit);
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
 };
-
 // ===============================
 // MODIFIER UN PRODUIT
 // ===============================
 exports.updateProduit = async (req, res) => {
   try {
-    if (!req.body.produits) throw new Error("Aucune donnée produit envoyée");
+    if (!req.body.produits) {
+      return res.status(400).json({ message: "Aucune donnée produit envoyée" });
+    }
+
     const data = JSON.parse(req.body.produits);
 
     const requiredFields = [
@@ -186,71 +157,82 @@ exports.updateProduit = async (req, res) => {
       "genre",
       "categorie",
     ];
+
     for (const field of requiredFields) {
-      if (!data[field])
-        throw new Error(`Le champ ${field} est obligatoire`);
+      if (!data[field]) {
+        return res
+          .status(400)
+          .json({ message: `Le champ ${field} est obligatoire` });
+      }
     }
 
+    // Sécurité
     delete data.userId;
 
+    // Conversion stockParVariation en Number
     if (data.stockParVariation) {
       const variations = {};
       for (const size in data.stockParVariation) {
         variations[size] = {};
         for (const color in data.stockParVariation[size]) {
-          variations[size][color] = Number(data.stockParVariation[size][color]);
+          variations[size][color] = Number(
+            data.stockParVariation[size][color]
+          );
         }
       }
       data.stockParVariation = variations;
     }
 
     const produit = await Produits.findById(req.params.id);
-    if (!produit) return res.status(404).json({ message: "Produit non trouvé" });
+    if (!produit) {
+      return res.status(404).json({ message: "Produit non trouvé" });
+    }
 
-    if (produit.userId !== req.auth.userId)
+    if (produit.userId !== req.auth.userId) {
       return res.status(403).json({ message: "Non autorisé" });
+    }
 
+    // Images conservées côté frontend
     const existingImages = req.body.existingImages
       ? JSON.parse(req.body.existingImages)
       : [];
 
-    // Supprimer les images retirées de Cloudinary
+    // 🔥 Supprimer de Cloudinary les images retirées
     for (const img of produit.imageUrl) {
       if (!existingImages.includes(img)) {
-        const parts = img.split("/");
-        const lastPart = parts[parts.length - 1];
-        const publicId = `produits/${lastPart.split(".")[0]}`;
         try {
+          const parts = img.split("/");
+          const lastPart = parts[parts.length - 1];
+          const publicId = `produits/${lastPart.split(".")[0]}`;
           await cloudinary.uploader.destroy(publicId);
         } catch (err) {
-          console.warn("Erreur suppression image Cloudinary:", err.message);
+          console.warn(
+            "Erreur suppression image Cloudinary :",
+            err.message
+          );
         }
       }
     }
 
-    // Upload nouvelles images
-    const newImages = [];
-    for (const file of req.files || []) {
-      const uploaded = await cloudinary.uploader.upload(file.path, { folder: "produits" });
-      newImages.push(uploaded.secure_url);
-    }
+    // 🔥 NOUVELLES IMAGES (déjà uploadées par Multer)
+    const newImages = (req.files || []).map((file) => file.path);
 
+    // Fusion images
     data.imageUrl = [...existingImages, ...newImages];
 
-    const updatedProduit = await Produits.findByIdAndUpdate(req.params.id, data, {
-      new: true,
-    });
-
-    const io = req.app.get("io");
-    io.emit("produitModifie", updatedProduit);
+    const updatedProduit = await Produits.findByIdAndUpdate(
+      req.params.id,
+      data,
+      { new: true }
+    );
 
     res.status(200).json({
       message: "Produit modifié avec succès",
       produit: updatedProduit,
     });
   } catch (error) {
-    console.error(error);
-    res.status(400).json({ message: error.message });
+    console.error("🔥 ERREUR UPDATE PRODUIT :", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
@@ -260,7 +242,8 @@ exports.updateProduit = async (req, res) => {
 exports.deleteProduit = async (req, res) => {
   try {
     const produit = await Produits.findById(req.params.id);
-    if (!produit) return res.status(404).json({ message: "Produit non trouvé" });
+    if (!produit)
+      return res.status(404).json({ message: "Produit non trouvé" });
 
     // Supprimer toutes les images du produit sur Cloudinary
     for (const img of produit.imageUrl) {

@@ -2,18 +2,16 @@ const multer = require("multer");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const cloudinary = require("../config/cloudinary");
 
-// Configuration Multer + Cloudinary
+// Stockage Cloudinary
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: "produits", // dossier sur Cloudinary
-    allowed_formats: ["jpg", "jpeg", "png", "webp"], // formats autorisés
-    transformation: [{ width: 800, height: 800, crop: "limit" }], // redimensionne si nécessaire
+    folder: "produits", // dossier Cloudinary
+    allowed_formats: ["jpg", "jpeg", "png", "webp"],
+    transformation: [{ width: 800, height: 800, crop: "limit" }],
   },
 });
 
-const upload = multer({ storage: storage });
+const upload = multer({ storage });
 
-module.exports = upload.array("image"); // "image" doit correspondre au name de l'input sur le frontend
-
-
+module.exports = upload.array("image"); // "image" = nom du champ envoyé depuis le front

@@ -36,4 +36,10 @@ app.use("/api/produits", produits);
 app.use("/api/favorites", favorites);
 app.use("/images", express.static(path.join(__dirname, "images")));
 app.use("/api/user", userRoutes);
+
+app.use((err, req, res, next) => {
+  console.error("🔥 ERREUR GLOBALE :", err);
+  res.status(500).json({ message: err.message });
+});
+
 module.exports = app;

@@ -1,4 +1,5 @@
 const Produits = require("../models/produits");
+const cloudinary = require("../config/cloudinary");
 
 // ===============================
 // AJOUTER UN PRODUIT
@@ -38,8 +39,14 @@ exports.sauvegarderProduits = async (req, res) => {
       produitsAjouter.stockParVariation = variations;
     }
 
-    // URLs Cloudinary
-    const images = req.files.map((file) => file.path);
+    // Upload images sur Cloudinary
+    const images = [];
+    for (const file of req.files) {
+      const uploaded = await cloudinary.uploader.upload(file.path, {
+        folder: "produits",
+      });
+      images.push(uploaded.secure_url);
+    }
 
     const produit = new Produits({
       ...produitsAjouter,
@@ -186,7 +193,6 @@ exports.updateProduit = async (req, res) => {
 
     delete data.userId;
 
-    // Convertir stockParVariation en nombres purs
     if (data.stockParVariation) {
       const variations = {};
       for (const size in data.stockParVariation) {
@@ -204,15 +210,31 @@ exports.updateProduit = async (req, res) => {
     if (produit.userId !== req.auth.userId)
       return res.status(403).json({ message: "Non autorisé" });
 
-    // Images existantes envoyées depuis le frontend
     const existingImages = req.body.existingImages
       ? JSON.parse(req.body.existingImages)
       : [];
 
-    // Ajouter nouvelles images uploadées
-    const newImages = (req.files || []).map((file) => file.path);
+    // Supprimer les images retirées de Cloudinary
+    for (const img of produit.imageUrl) {
+      if (!existingImages.includes(img)) {
+        const parts = img.split("/");
+        const lastPart = parts[parts.length - 1];
+        const publicId = `produits/${lastPart.split(".")[0]}`;
+        try {
+          await cloudinary.uploader.destroy(publicId);
+        } catch (err) {
+          console.warn("Erreur suppression image Cloudinary:", err.message);
+        }
+      }
+    }
 
-    // Combiner images existantes + nouvelles
+    // Upload nouvelles images
+    const newImages = [];
+    for (const file of req.files || []) {
+      const uploaded = await cloudinary.uploader.upload(file.path, { folder: "produits" });
+      newImages.push(uploaded.secure_url);
+    }
+
     data.imageUrl = [...existingImages, ...newImages];
 
     const updatedProduit = await Produits.findByIdAndUpdate(req.params.id, data, {
@@ -237,6 +259,21 @@ exports.updateProduit = async (req, res) => {
 // ===============================
 exports.deleteProduit = async (req, res) => {
   try {
+    const produit = await Produits.findById(req.params.id);
+    if (!produit) return res.status(404).json({ message: "Produit non trouvé" });
+
+    // Supprimer toutes les images du produit sur Cloudinary
+    for (const img of produit.imageUrl) {
+      const parts = img.split("/");
+      const lastPart = parts[parts.length - 1];
+      const publicId = `produits/${lastPart.split(".")[0]}`;
+      try {
+        await cloudinary.uploader.destroy(publicId);
+      } catch (err) {
+        console.warn("Erreur suppression image Cloudinary:", err.message);
+      }
+    }
+
     await Produits.findByIdAndDelete(req.params.id);
 
     const io = req.app.get("io");

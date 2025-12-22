@@ -1,16 +1,19 @@
 const multer = require("multer");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
-const cloudinary = require("cloudinary"); // notre config Cloudinary
+const cloudinary = require("../config/cloudinary");
 
-// Configuration du storage Cloudinary
+// Configuration Multer + Cloudinary
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: "ecommerce", // nom du dossier dans Cloudinary
-    allowed_formats: ["jpg", "jpeg", "png"],
-    transformation: [{ width: 800, height: 800, crop: "limit" }],
+    folder: "produits", // dossier sur Cloudinary
+    allowed_formats: ["jpg", "jpeg", "png", "webp"], // formats autorisés
+    transformation: [{ width: 800, height: 800, crop: "limit" }], // redimensionne si nécessaire
   },
 });
 
-// Export pour gérer plusieurs images
-module.exports = multer({ storage }).array("image");
+const upload = multer({ storage: storage });
+
+module.exports = upload.array("image"); // "image" doit correspondre au name de l'input sur le frontend
+
+

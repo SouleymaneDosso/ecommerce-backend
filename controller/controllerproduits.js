@@ -58,7 +58,8 @@ exports.sauvegarderProduits = async (req, res) => {
       return res.status(400).json({ message: "Au moins une image requise" });
 
     const images = req.files.map((f) => ({
-      url: f.path,
+      url: f.secure_url || f.path,
+
       public_id: f.filename,
     }));
 
@@ -134,7 +135,7 @@ exports.updateProduit = async (req, res) => {
     await supprimerImagesCloudinary(imagesToDelete);
 
     const newImages = (req.files || []).map((f) => ({
-      url: f.path,
+      url: f.secure_url || f.path,
       public_id: f.filename,
     }));
     data.imageUrl = [...existingImages, ...newImages];

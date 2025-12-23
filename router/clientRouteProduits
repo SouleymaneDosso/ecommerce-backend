@@ -1,0 +1,15 @@
+const express = require("express");
+const authClient = require("../authentification/authClient");
+const router = express.Router();
+const mesProduits = require("../controller/controllerproduits");
+
+// 🔹 Consultation produits (Public)
+router.get("/", mesProduits.getProduits);
+router.get("/recommandations/:id", mesProduits.getRecommendations);
+router.get("/:id", mesProduits.getProduitById);
+
+// 🔹 Commentaires
+router.get("/:id/commentaires", mesProduits.getCommentaires); // Tous les utilisateurs peuvent voir les commentaires
+router.post("/:id/commentaires", authClient, mesProduits.ajouterCommentaire); // Ajouter un commentaire (client)
+
+module.exports = router;

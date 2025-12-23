@@ -2,7 +2,8 @@ require("dotenv").config();
 const express = require("express");
 const app = express();
 const singnupdmin = require("./router/adminroute");
-const produits = require("./router/routerproduits");
+const produitsAdmin = require("./router/adminRouteProduits");
+const produitsClient = require("./router/clientRouteProduits")
 const favorites = require("./router/favoritesRoute");
 const userRoutes = require("./router/userRoutes");
 const adminCompte = require("./router/adminCompteRoute");
@@ -35,7 +36,8 @@ app.use(express.json());
 app.use("/api/user", userRoutes);
 app.use("/api/admin", singnupdmin);
 app.use("/api/admin/compte", adminCompte);
-app.use("/api/produits", produits);
+app.use("/api/produits", produitsAdmin);
+app.use("/api/produits", produitsClient);
 app.use("/api/favorites", favorites);
 app.use("/images", express.static(path.join(__dirname, "images")));
 

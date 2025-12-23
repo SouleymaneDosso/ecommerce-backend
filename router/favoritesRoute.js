@@ -1,9 +1,9 @@
 const express = require("express");
 const router = express.Router();
-const auth = require("../authentification/auth");
+const authClient = require("../authentification/authClient");
 const favoritesController = require("../controller/favoritesController");
 
-router.get("/", auth, favoritesController.getFavorites);
-router.post("/toggle", auth, favoritesController.toggleFavorite);
+router.get("/", authClient, favoritesController.getFavorites);
+router.post("/toggle", authClient, favoritesController.toggleFavorite);
 
 module.exports = router;

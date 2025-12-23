@@ -1,8 +1,7 @@
 const jwt = require("jsonwebtoken");
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET_CLIENT;
 
 module.exports = (req, res, next) => {
-  console.log("Auth middleware appelé");
   try {
     const authHeader = req.headers.authorization;
 
@@ -11,8 +10,9 @@ module.exports = (req, res, next) => {
     }
 
     const token = authHeader.split(" ")[1];
-    const decodedToken = jwt.verify(token, JWT_SECRET);
+    if (!token) return res.status(401).json({ message: "Token manquant" });
 
+    const decodedToken = jwt.verify(token, JWT_SECRET);
     req.auth = { userId: decodedToken.userId };
     next();
   } catch (error) {

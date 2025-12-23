@@ -5,6 +5,7 @@ const singnupdmin = require("./router/adminroute");
 const produits = require("./router/routerproduits");
 const favorites = require("./router/favoritesRoute");
 const userRoutes = require("./router/userRoutes");
+const adminCompte = require("./router/adminCompteRoute");
 const path = require("path");
 
 
@@ -31,11 +32,14 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json());
+app.use("/api/user", userRoutes);
 app.use("/api/admin", singnupdmin);
+app.use("/api/admin/compte", adminCompte);
 app.use("/api/produits", produits);
 app.use("/api/favorites", favorites);
 app.use("/images", express.static(path.join(__dirname, "images")));
-app.use("/api/user", userRoutes);
+
+
 
 app.use((err, req, res, next) => {
   console.error("🔥 ERREUR GLOBALE :", err);

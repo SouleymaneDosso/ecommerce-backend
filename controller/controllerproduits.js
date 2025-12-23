@@ -29,15 +29,26 @@ exports.sauvegarderProduits = async (req, res) => {
     let data;
     try {
       data = JSON.parse(req.body.produits);
+      data.price = Number(data.price);
+      data.stock = Number(data.stock);
     } catch {
       return res.status(400).json({ message: "JSON produit invalide" });
     }
 
     // Validation stricte
-    const requiredFields = ["title", "description", "price", "stock", "genre", "categorie"];
+    const requiredFields = [
+      "title",
+      "description",
+      "price",
+      "stock",
+      "genre",
+      "categorie",
+    ];
     for (const field of requiredFields) {
       if (!data[field])
-        return res.status(400).json({ message: `Le champ ${field} est obligatoire` });
+        return res
+          .status(400)
+          .json({ message: `Le champ ${field} est obligatoire` });
     }
 
     if (typeof data.price !== "number" || data.price < 0)
@@ -46,7 +57,10 @@ exports.sauvegarderProduits = async (req, res) => {
     if (!req.files || req.files.length === 0)
       return res.status(400).json({ message: "Au moins une image requise" });
 
-    const images = req.files.map(f => ({ url: f.path, public_id: f.filename }));
+    const images = req.files.map((f) => ({
+      url: f.path,
+      public_id: f.filename,
+    }));
 
     const produit = new Produits({
       ...data,
@@ -60,7 +74,6 @@ exports.sauvegarderProduits = async (req, res) => {
 
     await produit.save();
     res.status(201).json({ message: "Produit ajouté avec succès", produit });
-
   } catch (err) {
     console.error("🔥 ERREUR ajout produit:", err.message);
     res.status(500).json({ message: "Erreur serveur" });
@@ -81,42 +94,67 @@ exports.updateProduit = async (req, res) => {
     let data;
     try {
       data = JSON.parse(req.body.produits);
+      data.price = Number(data.price);
+      data.stock = Number(data.stock);
     } catch {
       return res.status(400).json({ message: "JSON produit invalide" });
     }
 
-    const requiredFields = ["title", "description", "price", "stock", "genre", "categorie"];
+    const requiredFields = [
+      "title",
+      "description",
+      "price",
+      "stock",
+      "genre",
+      "categorie",
+    ];
     for (const field of requiredFields) {
       if (!data[field])
-        return res.status(400).json({ message: `Le champ ${field} est obligatoire` });
+        return res
+          .status(400)
+          .json({ message: `Le champ ${field} est obligatoire` });
     }
 
     delete data.userId;
 
     const produit = await Produits.findById(req.params.id).session(session);
-    if (!produit) return res.status(404).json({ message: "Produit non trouvé" });
+    if (!produit)
+      return res.status(404).json({ message: "Produit non trouvé" });
 
     if (!req.admin && produit.userId !== req.auth.userId)
       return res.status(403).json({ message: "Non autorisé" });
 
     // Gestion images
-    const existingImages = req.body.existingImages ? JSON.parse(req.body.existingImages) : [];
-    const imagesToDelete = produit.imageUrl.filter(img => !existingImages.some(e => e.url === img.url));
+    const existingImages = req.body.existingImages
+      ? JSON.parse(req.body.existingImages)
+      : [];
+    const imagesToDelete = produit.imageUrl.filter(
+      (img) => !existingImages.some((e) => e.url === img.url)
+    );
     await supprimerImagesCloudinary(imagesToDelete);
 
-    const newImages = (req.files || []).map(f => ({ url: f.path, public_id: f.filename }));
+    const newImages = (req.files || []).map((f) => ({
+      url: f.path,
+      public_id: f.filename,
+    }));
     data.imageUrl = [...existingImages, ...newImages];
 
     // Bonus : hero et badge
     data.hero = data.hero || produit.hero;
     data.badge = data.badge || produit.badge;
 
-    const updatedProduit = await Produits.findByIdAndUpdate(req.params.id, data, { new: true, session });
+    const updatedProduit = await Produits.findByIdAndUpdate(
+      req.params.id,
+      data,
+      { new: true, session }
+    );
     await session.commitTransaction();
     session.endSession();
 
-    res.status(200).json({ message: "Produit modifié avec succès", produit: updatedProduit });
-
+    res.status(200).json({
+      message: "Produit modifié avec succès",
+      produit: updatedProduit,
+    });
   } catch (err) {
     await session.abortTransaction();
     session.endSession();
@@ -134,7 +172,8 @@ exports.deleteProduit = async (req, res) => {
 
   try {
     const produit = await Produits.findById(req.params.id).session(session);
-    if (!produit) return res.status(404).json({ message: "Produit non trouvé" });
+    if (!produit)
+      return res.status(404).json({ message: "Produit non trouvé" });
 
     if (!req.admin && produit.userId !== req.auth.userId)
       return res.status(403).json({ message: "Non autorisé" });
@@ -146,7 +185,6 @@ exports.deleteProduit = async (req, res) => {
     session.endSession();
 
     res.status(200).json({ message: "Produit supprimé avec succès" });
-
   } catch (err) {
     await session.abortTransaction();
     session.endSession();
@@ -166,7 +204,6 @@ exports.getProduits = async (req, res) => {
 
     const produits = await Produits.find().skip(skip).limit(limit);
     res.status(200).json(produits);
-
   } catch (err) {
     console.error("🔥 ERREUR getProduits:", err.message);
     res.status(500).json({ message: "Erreur serveur" });
@@ -179,7 +216,8 @@ exports.getProduits = async (req, res) => {
 exports.getProduitById = async (req, res) => {
   try {
     const produit = await Produits.findById(req.params.id);
-    if (!produit) return res.status(404).json({ message: "Produit non trouvé" });
+    if (!produit)
+      return res.status(404).json({ message: "Produit non trouvé" });
     res.status(200).json(produit);
   } catch (err) {
     console.error("🔥 ERREUR getProduitById:", err.message);
@@ -198,18 +236,25 @@ exports.ajouterCommentaire = async (req, res) => {
       return res.status(400).json({ message: "Message et note (1-5) requis" });
 
     const produit = await Produits.findById(req.params.id);
-    if (!produit) return res.status(404).json({ message: "Produit non trouvé" });
+    if (!produit)
+      return res.status(404).json({ message: "Produit non trouvé" });
 
-    const commentaire = { user: req.auth.userId, message, rating, createdAt: new Date() };
+    const commentaire = {
+      user: req.auth.userId,
+      message,
+      rating,
+      createdAt: new Date(),
+    };
     produit.commentaires.push(commentaire);
 
     // Mettre à jour averageRating
     const total = produit.commentaires.reduce((acc, c) => acc + c.rating, 0);
-    produit.averageRating = parseFloat((total / produit.commentaires.length).toFixed(1));
+    produit.averageRating = parseFloat(
+      (total / produit.commentaires.length).toFixed(1)
+    );
 
     await produit.save();
     res.status(201).json(commentaire);
-
   } catch (err) {
     console.error("🔥 ERREUR addCommentaire:", err.message);
     res.status(500).json({ message: "Erreur serveur" });
@@ -223,11 +268,13 @@ exports.supprimerCommentaire = async (req, res) => {
   try {
     const { produitId, commentaireId } = req.params;
     const produit = await Produits.findById(produitId);
-    if (!produit) return res.status(404).json({ message: "Produit non trouvé" });
+    if (!produit)
+      return res.status(404).json({ message: "Produit non trouvé" });
 
     // Vérifie si l'utilisateur est admin ou auteur du commentaire
     const commentaire = produit.commentaires.id(commentaireId);
-    if (!commentaire) return res.status(404).json({ message: "Commentaire non trouvé" });
+    if (!commentaire)
+      return res.status(404).json({ message: "Commentaire non trouvé" });
 
     if (!req.admin && commentaire.user !== req.auth.userId)
       return res.status(403).json({ message: "Non autorisé" });
@@ -237,14 +284,15 @@ exports.supprimerCommentaire = async (req, res) => {
     // Recalcul averageRating
     if (produit.commentaires.length > 0) {
       const total = produit.commentaires.reduce((acc, c) => acc + c.rating, 0);
-      produit.averageRating = parseFloat((total / produit.commentaires.length).toFixed(1));
+      produit.averageRating = parseFloat(
+        (total / produit.commentaires.length).toFixed(1)
+      );
     } else {
       produit.averageRating = 0;
     }
 
     await produit.save();
     res.status(200).json({ message: "Commentaire supprimé avec succès" });
-
   } catch (err) {
     console.error("🔥 ERREUR deleteCommentaire:", err.message);
     res.status(500).json({ message: "Erreur serveur" });
@@ -257,12 +305,13 @@ exports.supprimerCommentaire = async (req, res) => {
 exports.getCommentaires = async (req, res) => {
   try {
     const produit = await Produits.findById(req.params.id);
-    if (!produit) return res.status(404).json({ message: "Produit non trouvé" });
+    if (!produit)
+      return res.status(404).json({ message: "Produit non trouvé" });
 
     res.status(200).json({
       commentaires: produit.commentaires,
       averageRating: produit.averageRating || 0,
-      totalCommentaires: produit.commentaires.length
+      totalCommentaires: produit.commentaires.length,
     });
   } catch (err) {
     console.error("🔥 ERREUR getCommentaires:", err.message);
@@ -276,7 +325,8 @@ exports.getCommentaires = async (req, res) => {
 exports.getRecommendations = async (req, res) => {
   try {
     const produit = await Produits.findById(req.params.id);
-    if (!produit) return res.status(404).json({ message: "Produit non trouvé" });
+    if (!produit)
+      return res.status(404).json({ message: "Produit non trouvé" });
 
     const prixMin = produit.price * 0.8;
     const prixMax = produit.price * 1.2;

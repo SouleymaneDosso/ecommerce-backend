@@ -2,14 +2,42 @@ const express = require("express");
 const authAdmin = require("../authentification/authAdmin");
 const router = express.Router();
 const mesProduits = require("../controller/controllerproduits");
-const multer = require("../authentification/multer-config");
+const upload = require("../middleware/multer-config");
 
-// 🔹 CRUD produits (Admin)
-router.post("/", authAdmin, multer, mesProduits.sauvegarderProduits);
-router.put("/:id", authAdmin, multer, mesProduits.updateProduit);
-router.delete("/:id", authAdmin, mesProduits.deleteProduit);
+// ===============================
+// CRUD PRODUITS (ADMIN)
+// ===============================
 
-// 🔹 Gestion commentaires (Admin)
-router.delete("/:produitId/commentaires/:commentaireId", authAdmin, mesProduits.supprimerCommentaire);
+// ➕ Créer un produit (multi-images)
+router.post(
+  "/",
+  authAdmin,
+  upload.array("images", 6),
+  mesProduits.sauvegarderProduits
+);
+
+// ✏️ Modifier un produit (optionnellement images)
+router.put(
+  "/:id",
+  authAdmin,
+  upload.array("images", 6),
+  mesProduits.updateProduit
+);
+
+// ❌ Supprimer un produit
+router.delete(
+  "/:id",
+  authAdmin,
+  mesProduits.deleteProduit
+);
+
+// ===============================
+// COMMENTAIRES (ADMIN)
+// ===============================
+router.delete(
+  "/:produitId/commentaires/:commentaireId",
+  authAdmin,
+  mesProduits.supprimerCommentaire
+);
 
 module.exports = router;

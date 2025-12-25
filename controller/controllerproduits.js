@@ -1,59 +1,82 @@
 const Produits = require("../models/produits");
 const cloudinary = require("../config/cloudinary");
 
-// ===============================
-// AJOUTER UN PRODUIT (Admin)
-// ===============================
 exports.sauvegarderProduits = async (req, res) => {
   try {
-    if ((!req.files || req.files.length === 0) && (!req.body.existingImages || req.body.existingImages.length === 0)) {
+    if (!req.files || req.files.length === 0) {
       return res.status(400).json({ message: "Au moins une image est requise" });
     }
 
-    const data = req.body;
+    // ===============================
+    // 1. DATA
+    // ===============================
+    const {
+      title,
+      description,
+      price,
+      genre,
+      categorie,
+      badge,
+      tailles,
+      couleurs,
+      stockParVariation
+    } = req.body;
 
-    // Parse stockParVariation si envoyé en string
-    if (data.stockParVariation) {
-      data.stockParVariation = JSON.parse(data.stockParVariation);
-    }
+    // ===============================
+    // 2. PARSE JSON
+    // ===============================
+    const parsedTailles = typeof tailles === "string" ? JSON.parse(tailles) : tailles;
+    const parsedCouleurs = typeof couleurs === "string" ? JSON.parse(couleurs) : couleurs;
+    const parsedStock = typeof stockParVariation === "string"
+      ? JSON.parse(stockParVariation)
+      : stockParVariation;
 
-    // Upload nouvelles images sur Cloudinary
-    const images = [];
-    if (req.files && req.files.length > 0) {
-      for (let i = 0; i < req.files.length; i++) {
-        const file = req.files[i];
-        const result = await cloudinary.uploader.upload(file.path, { folder: "produits" });
-        images.push({
-          url: result.secure_url,
-          publicId: result.public_id,
-          isMain: i === 0, // première image = principale par défaut
-        });
+    // ===============================
+    // 3. CALCUL STOCK TOTAL
+    // ===============================
+    let stockTotal = 0;
+    for (const color of Object.keys(parsedStock)) {
+      for (const size of Object.keys(parsedStock[color])) {
+        stockTotal += Number(parsedStock[color][size]) || 0;
       }
     }
 
-    // Si frontend envoie des images existantes (rare pour ajout, mais possible)
-    if (data.existingImages) {
-      const exist = JSON.parse(data.existingImages);
-      exist.forEach((img, idx) => {
-        images.push({
-          url: img.url,
-          publicId: img.publicId,
-          isMain: idx === 0 && images.length === 0, // première image principale si aucune nouvelle
-        });
-      });
-    }
+    // ===============================
+    // 4. IMAGES CLOUDINARY
+    // ===============================
+    const images = req.files.map((file, index) => ({
+      url: file.path,
+      publicId: file.filename,
+      isMain: index === 0,
+    }));
 
+    // ===============================
+    // 5. SAUVEGARDE PRODUIT
+    // ===============================
     const produit = new Produits({
-      ...data,
+      title,
+      description,
+      price,
+      genre,
+      categorie,
+      badge: badge || null,
       images,
-      userId: req.auth.userId,
+      tailles: parsedTailles,
+      couleurs: parsedCouleurs,
+      stock: stockTotal,
+      stockParVariation: parsedStock,
+      userId: req.admin._id,
     });
 
     await produit.save();
-    res.status(201).json({ message: "Produit créé avec succès", produit });
+
+    res.status(201).json({
+      message: "Produit créé avec succès",
+      produit,
+    });
   } catch (error) {
     console.error("🔥 ERREUR sauvegarderProduits:", error);
-    res.status(400).json({ error: error.message });
+    res.status(400).json({ message: error.message });
   }
 };
 
@@ -63,8 +86,10 @@ exports.sauvegarderProduits = async (req, res) => {
 exports.updateProduit = async (req, res) => {
   try {
     const produit = await Produits.findById(req.params.id);
-    if (!produit) return res.status(404).json({ message: "Produit non trouvé" });
-    if (produit.userId !== req.auth.userId) return res.status(403).json({ message: "Non autorisé" });
+    if (!produit)
+      return res.status(404).json({ message: "Produit non trouvé" });
+    if (produit.userId !== req.auth.userId)
+      return res.status(403).json({ message: "Non autorisé" });
 
     let images = [];
 
@@ -77,7 +102,9 @@ exports.updateProduit = async (req, res) => {
     // 2️⃣ Upload nouvelles images
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
-        const result = await cloudinary.uploader.upload(file.path, { folder: "produits" });
+        const result = await cloudinary.uploader.upload(file.path, {
+          folder: "produits",
+        });
         images.push({
           url: result.secure_url,
           publicId: result.public_id,
@@ -97,8 +124,9 @@ exports.updateProduit = async (req, res) => {
     }
 
     // 4️⃣ Supprimer les images Cloudinary supprimées
-    const toDelete = produit.images
-      .filter((oldImg) => !images.find((img) => img.publicId === oldImg.publicId));
+    const toDelete = produit.images.filter(
+      (oldImg) => !images.find((img) => img.publicId === oldImg.publicId)
+    );
     for (const img of toDelete) {
       await cloudinary.uploader.destroy(img.publicId);
     }
@@ -115,7 +143,9 @@ exports.updateProduit = async (req, res) => {
       { new: true }
     );
 
-    res.status(200).json({ message: "Produit mis à jour", produit: updatedProduit });
+    res
+      .status(200)
+      .json({ message: "Produit mis à jour", produit: updatedProduit });
   } catch (error) {
     console.error("🔥 ERREUR updateProduit:", error);
     res.status(400).json({ error: error.message });

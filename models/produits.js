@@ -74,9 +74,11 @@ const schemaproduits = new mongoose.Schema(
 );
 
 schemaproduits.virtual("isNew").get(function () {
-  const created = this.createdAt || new Date();
+  if (!this.createdAt) return false;
   const days = Number(process.env.NEW_PRODUCT_DAYS) || 7;
-  return Date.now() - created.getTime() < days * 86400000;
+  const now = new Date();
+  const diff = now - this.createdAt; // différence en ms
+  return diff < days * 24 * 60 * 60 * 1000;
 });
 
 module.exports = mongoose.model("Produits", schemaproduits);

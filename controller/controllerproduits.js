@@ -1,41 +1,51 @@
 const Produits = require("../models/produits");
 const cloudinary = require("../config/cloudinary");
 
+/* ===============================
+   HELPERS
+================================ */
+const safeParse = (value, fallback) => {
+  try {
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const isValidMainIndex = (index, length) =>
+  Number.isInteger(index) && index >= 0 && index < length;
+
+/* ===============================
+   CREATE PRODUIT
+================================ */
 exports.sauvegarderProduits = async (req, res) => {
   if (!req.admin) {
     return res.status(401).json({ message: "Admin non authentifié" });
   }
 
   try {
-    // 1️⃣ Vérification images
     if (!req.files || req.files.length === 0) {
       return res
         .status(400)
         .json({ message: "Au moins une image est requise" });
     }
 
-    // 2️⃣ Format images depuis Multer + CloudinaryStorage
+    const mainIndex = Number(req.body.mainImageIndex) || 0;
+
     const images = req.files.map((file, index) => ({
-      url: file.path, // contient déjà l'URL publique
-      publicId: file.filename, // correspond au public_id Cloudinary
-      isMain: index === 0,
+      url: file.path,
+      publicId: file.filename,
+      isMain: index === mainIndex,
     }));
 
-    // 3️⃣ stockParVariation (JSON depuis FormData)
-    let stockParVariation = {};
-    if (req.body.stockParVariation) {
-      stockParVariation = JSON.parse(req.body.stockParVariation);
-    }
-
-    // 4️⃣ Création produit
     const produit = await Produits.create({
       title: req.body.title,
       description: req.body.description,
       price: Number(req.body.price),
       stock: Number(req.body.stock) || 0,
-      tailles: req.body.tailles ? JSON.parse(req.body.tailles) : [],
-      couleurs: req.body.couleurs ? JSON.parse(req.body.couleurs) : [],
-      stockParVariation,
+      tailles: safeParse(req.body.tailles, []),
+      couleurs: safeParse(req.body.couleurs, []),
+      stockParVariation: safeParse(req.body.stockParVariation, {}),
       genre: req.body.genre,
       categorie: req.body.categorie,
       badge: req.body.badge || null,
@@ -46,53 +56,57 @@ exports.sauvegarderProduits = async (req, res) => {
 
     res.status(201).json(produit.toJSON());
   } catch (error) {
-    console.error(error);
+    console.error("❌ sauvegarderProduits:", error.message);
     res.status(500).json({ message: error.message });
   }
 };
 
-// ===============================
-// MODIFIER PRODUIT (Admin / Propriétaire)
-// ===============================
+/* ===============================
+   UPDATE PRODUIT
+================================ */
 exports.updateProduit = async (req, res) => {
   try {
     const produit = await Produits.findById(req.params.id);
-    if (!produit) {
+    if (!produit)
       return res.status(404).json({ message: "Produit introuvable" });
-    }
 
-    // --------------------------
-    // 1️⃣ Supprimer des images existantes si demandé
-    // --------------------------
+    const mainIndex = Number(req.body.mainImageIndex);
+
+    /* -------- SUPPRESSION IMAGES -------- */
     if (req.body.imagesToDelete) {
-      // tableau d'IDs Cloudinary à supprimer
-      const idsToDelete = JSON.parse(req.body.imagesToDelete);
+      const idsToDelete = safeParse(req.body.imagesToDelete, []);
 
-      produit.images = produit.images.filter((img) => {
-        if (idsToDelete.includes(img.publicId)) {
-          // supprimer de Cloudinary
-          cloudinary.uploader.destroy(img.publicId);
-          return false; // enlever de tableau
-        }
-        return true;
-      });
+      await Promise.all(
+        produit.images
+          .filter((img) => idsToDelete.includes(img.publicId))
+          .map((img) => cloudinary.uploader.destroy(img.publicId))
+      );
+
+      produit.images = produit.images.filter(
+        (img) => !idsToDelete.includes(img.publicId)
+      );
     }
 
-    // --------------------------
-    // 2️⃣ Ajouter nouvelles images uploadées
-    // --------------------------
-    if (req.files && req.files.length > 0) {
-      const newImages = req.files.map((file, index) => ({
-        url: file.path,
-        publicId: file.filename,
-        isMain: false, // on peut gérer différemment si besoin
-      }));
-      produit.images.push(...newImages);
-    }
+    /* -------- AJOUT NOUVELLES IMAGES -------- */
+let newImagesStartIndex = produit.images.length; // avant push des nouvelles
+if (req.files && req.files.length > 0) {
+  const newImages = req.files.map((file) => ({
+    url: file.path,
+    publicId: file.filename,
+    isMain: false,
+  }));
+  produit.images.push(...newImages);
+}
 
-    // --------------------------
-    // 3️⃣ Mettre à jour les autres champs
-    // --------------------------
+/* -------- IMAGE PRINCIPALE -------- */
+const totalImages = produit.images.length;
+if (isValidMainIndex(mainIndex, totalImages)) {
+  produit.images.forEach((img, idx) => {
+    img.isMain = idx === mainIndex; // idx = position dans tableau final
+  });
+}
+
+    /* -------- AUTRES CHAMPS -------- */
     const champs = [
       "title",
       "description",
@@ -109,10 +123,8 @@ exports.updateProduit = async (req, res) => {
 
     champs.forEach((field) => {
       if (req.body[field] !== undefined) {
-        if (field === "tailles" || field === "couleurs") {
-          produit[field] = JSON.parse(req.body[field]);
-        } else if (field === "stockParVariation") {
-          produit[field] = JSON.parse(req.body[field]);
+        if (["tailles", "couleurs", "stockParVariation"].includes(field)) {
+          produit[field] = safeParse(req.body[field], []);
         } else if (field === "hero") {
           produit[field] = req.body[field] === "true";
         } else if (field === "price" || field === "stock") {
@@ -126,115 +138,127 @@ exports.updateProduit = async (req, res) => {
     await produit.save();
     res.status(200).json(produit.toJSON());
   } catch (error) {
+    console.error("❌ updateProduit:", error.message);
     res.status(500).json({ message: error.message });
   }
 };
-// ===============================
-// SUPPRIMER PRODUIT
-// ===============================
+
+/* ===============================
+   DELETE PRODUIT
+================================ */
 exports.deleteProduit = async (req, res) => {
   try {
     const produit = await Produits.findById(req.params.id);
-    if (!produit) {
+    if (!produit)
       return res.status(404).json({ message: "Produit introuvable" });
-    }
 
-    // suppression sécurisée des images sur Cloudinary
-    for (const img of produit.images) {
-      try {
-        if (img.publicId) {
-          await cloudinary.uploader.destroy(img.publicId);
-        }
-      } catch (err) {
-        console.error(`Erreur Cloudinary pour ${img.publicId}:`, err.message);
-      }
-    }
+    await Promise.all(
+      produit.images.map((img) =>
+        img.publicId
+          ? cloudinary.uploader.destroy(img.publicId).catch(() => null)
+          : null
+      )
+    );
 
-    // suppression du produit
     await produit.deleteOne();
-
-    res.json({ message: "Produit et toutes ses images supprimés avec succès" });
+    res.json({ message: "Produit supprimé avec succès" });
   } catch (error) {
-    console.error("Erreur deleteProduit:", error.message);
+    console.error("❌ deleteProduit:", error.message);
     res.status(500).json({ message: error.message });
   }
 };
 
-// ===============================
-// GET PRODUITS avec pagination
-// ===============================
+/* ===============================
+   GET PRODUITS (pagination)
+================================ */
 exports.getProduits = async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
     const produits = await Produits.find()
+      .sort({ createdAt: -1 }) // nouveaux d'abord
       .skip(skip)
-      .limit(limit)
-      .lean({ virtuals: true });
-    res.status(200).json(produits);
+      .limit(limit);
+
+    res.status(200).json(produits.map((p) => p.toJSON()));
   } catch (err) {
-    console.error("🔥 ERREUR getProduits:", err.message);
+    console.error("🔥 getProduits:", err.message);
     res.status(500).json({ message: "Erreur serveur" });
   }
 };
 
-// ===============================
-// GET PRODUIT PAR ID
-// ===============================
+/* ===============================
+   GET PRODUIT BY ID
+================================ */
 exports.getProduitById = async (req, res) => {
   try {
     const produit = await Produits.findById(req.params.id);
     if (!produit)
       return res.status(404).json({ message: "Produit non trouvé" });
+
     res.status(200).json(produit.toJSON());
   } catch (err) {
-    console.error("🔥 ERREUR getProduitById:", err.message);
+    console.error("🔥 getProduitById:", err.message);
     res.status(500).json({ message: "Erreur serveur" });
   }
 };
 
-// ===============================
-// AJOUTER COMMENTAIRE (Client)
-// ===============================
+/* ===============================
+   COMMENTAIRES
+================================ */
 exports.ajouterCommentaire = async (req, res) => {
   try {
-    const { message, rating } = req.body;
+    if (!req.admin && !req.auth?.userId) {
+      return res.status(401).json({ message: "Non authentifié" });
+    }
 
-    if (!message || rating == null || rating < 1 || rating > 5)
-      return res.status(400).json({ message: "Message et note (1-5) requis" });
+    const { message, rating } = req.body;
+    if (!message || rating < 1 || rating > 5)
+      return res.status(400).json({ message: "Message et note requis" });
 
     const produit = await Produits.findById(req.params.id);
     if (!produit)
       return res.status(404).json({ message: "Produit non trouvé" });
 
-    const commentaire = {
-      user: req.admin ? req.admin._id.toString() : req.auth.userId, // si admin ou client
+    produit.commentaires.push({
+      user: req.admin ? req.admin._id.toString() : req.auth.userId,
       message,
       rating,
       createdAt: new Date(),
-    };
+    });
 
-    produit.commentaires.push(commentaire);
-
-    // Recalcul averageRating
-    const total = produit.commentaires.reduce((acc, c) => acc + c.rating, 0);
-    produit.averageRating = parseFloat(
+    const total = produit.commentaires.reduce((a, c) => a + c.rating, 0);
+    produit.averageRating = Number(
       (total / produit.commentaires.length).toFixed(1)
     );
 
     await produit.save();
-    res.status(201).json(commentaire);
+    res.status(201).json(produit.commentaires.at(-1));
   } catch (err) {
-    console.error("🔥 ERREUR ajouterCommentaire:", err.message);
+    console.error("🔥 ajouterCommentaire:", err.message);
     res.status(500).json({ message: "Erreur serveur" });
   }
 };
 
-// ===============================
-// SUPPRIMER COMMENTAIRE (Admin / Propriétaire)
-// ===============================
+/* ===============================
+   COMMENTAIRES
+================================ */
+exports.getCommentaires = async (req, res) => {
+  try {
+    const produit = await Produits.findById(req.params.id);
+    if (!produit)
+      return res.status(404).json({ message: "Produit non trouvé" });
+
+    res.json(produit.commentaires);
+  } catch (err) {
+    console.error("🔥 getCommentaires:", err.message);
+    res.status(500).json({ message: "Erreur serveur" });
+  }
+};
+
+
 exports.supprimerCommentaire = async (req, res) => {
   try {
     const { produitId, commentaireId } = req.params;
@@ -246,70 +270,52 @@ exports.supprimerCommentaire = async (req, res) => {
     if (!commentaire)
       return res.status(404).json({ message: "Commentaire non trouvé" });
 
-    if (!req.admin && commentaire.user !== req.auth.userId)
+    if (!req.admin && commentaire.user !== req.auth?.userId)
       return res.status(403).json({ message: "Non autorisé" });
 
     commentaire.remove();
 
-    // Recalcul averageRating
-    if (produit.commentaires.length > 0) {
-      const total = produit.commentaires.reduce((acc, c) => acc + c.rating, 0);
-      produit.averageRating = parseFloat(
-        (total / produit.commentaires.length).toFixed(1)
-      );
-    } else {
-      produit.averageRating = 0;
-    }
+    produit.averageRating =
+      produit.commentaires.length === 0
+        ? 0
+        : Number(
+            (
+              produit.commentaires.reduce((a, c) => a + c.rating, 0) /
+              produit.commentaires.length
+            ).toFixed(1)
+          );
 
     await produit.save();
-    res.status(200).json({ message: "Commentaire supprimé avec succès" });
+    res.json({ message: "Commentaire supprimé" });
   } catch (err) {
-    console.error("🔥 ERREUR supprimerCommentaire:", err.message);
+    console.error("🔥 supprimerCommentaire:", err.message);
     res.status(500).json({ message: "Erreur serveur" });
   }
 };
 
-// ===============================
-// GET COMMENTAIRES d'un produit
-// ===============================
-exports.getCommentaires = async (req, res) => {
-  try {
-    const produit = await Produits.findById(req.params.id);
-    if (!produit)
-      return res.status(404).json({ message: "Produit non trouvé" });
-
-    res.status(200).json({
-      commentaires: produit.commentaires,
-      averageRating: produit.averageRating || 0,
-      totalCommentaires: produit.commentaires.length,
-    });
-  } catch (err) {
-    console.error("🔥 ERREUR getCommentaires:", err.message);
-    res.status(500).json({ message: "Erreur serveur" });
-  }
-};
-
-// ===============================
-// RECOMMANDATIONS PRODUITS
-// ===============================
+/* ===============================
+   RECOMMANDATIONS
+================================ */
 exports.getRecommendations = async (req, res) => {
   try {
     const produit = await Produits.findById(req.params.id);
     if (!produit)
       return res.status(404).json({ message: "Produit non trouvé" });
 
-    const prixMin = produit.price * 0.8;
-    const prixMax = produit.price * 1.2;
+    const min = produit.price * 0.8;
+    const max = produit.price * 1.2;
 
     const recommandations = await Produits.find({
       categorie: produit.categorie,
       _id: { $ne: produit._id },
-      price: { $gte: prixMin, $lte: prixMax },
-    }).limit(4);
+      price: { $gte: min, $lte: max },
+    })
+      .sort({ createdAt: -1 })
+      .limit(4);
 
-    res.status(200).json(recommandations);
+    res.json(recommandations.map((p) => p.toJSON()));
   } catch (err) {
-    console.error("🔥 ERREUR getRecommendations:", err.message);
+    console.error("🔥 getRecommendations:", err.message);
     res.status(500).json({ message: "Erreur serveur" });
   }
 };

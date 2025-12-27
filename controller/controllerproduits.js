@@ -44,7 +44,7 @@ exports.sauvegarderProduits = async (req, res) => {
       userId: req.admin._id,
     });
 
-    res.status(201).json(produit);
+    res.status(201).json(produit.toJSON());
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: error.message });
@@ -124,7 +124,7 @@ exports.updateProduit = async (req, res) => {
     });
 
     await produit.save();
-    res.status(200).json(produit);
+    res.status(200).json(produit.toJSON());
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -188,7 +188,7 @@ exports.getProduitById = async (req, res) => {
     const produit = await Produits.findById(req.params.id);
     if (!produit)
       return res.status(404).json({ message: "Produit non trouvé" });
-    res.status(200).json(produit);
+    res.status(200).json(produit.toJSON());
   } catch (err) {
     console.error("🔥 ERREUR getProduitById:", err.message);
     res.status(500).json({ message: "Erreur serveur" });

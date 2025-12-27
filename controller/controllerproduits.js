@@ -2,10 +2,17 @@ const Produits = require("../models/produits");
 const cloudinary = require("../config/cloudinary");
 
 exports.sauvegarderProduits = async (req, res) => {
+  console.log("req.admin:", req.admin);
+  if (!req.admin) {
+    return res.status(401).json({ message: "Admin non authentifié" });
+  }
+
   try {
     // 1️⃣ vérification images
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ message: "Au moins une image est requise" });
+      return res
+        .status(400)
+        .json({ message: "Au moins une image est requise" });
     }
 
     // 2️⃣ format images Cloudinary
@@ -30,12 +37,12 @@ exports.sauvegarderProduits = async (req, res) => {
       tailles: req.body.tailles ? JSON.parse(req.body.tailles) : [],
       couleurs: req.body.couleurs ? JSON.parse(req.body.couleurs) : [],
       stockParVariation,
-      userId: req.body.userId,
       genre: req.body.genre,
       categorie: req.body.categorie,
       badge: req.body.badge || null,
       hero: req.body.hero === "true",
       images,
+      userId: req.admin._id,
     });
 
     res.status(201).json(produit);
@@ -132,18 +139,27 @@ exports.deleteProduit = async (req, res) => {
       return res.status(404).json({ message: "Produit introuvable" });
     }
 
-    // suppression Cloudinary
+    // suppression sécurisée des images sur Cloudinary
     for (const img of produit.images) {
-      await cloudinary.uploader.destroy(img.publicId);
+      try {
+        if (img.publicId) {
+          await cloudinary.uploader.destroy(img.publicId);
+        }
+      } catch (err) {
+        console.error(`Erreur Cloudinary pour ${img.publicId}:`, err.message);
+      }
     }
 
+    // suppression du produit
     await produit.deleteOne();
 
-    res.json({ message: "Produit supprimé avec succès" });
+    res.json({ message: "Produit et toutes ses images supprimés avec succès" });
   } catch (error) {
+    console.error("Erreur deleteProduit:", error.message);
     res.status(500).json({ message: error.message });
   }
 };
+
 // ===============================
 // GET PRODUITS avec pagination
 // ===============================

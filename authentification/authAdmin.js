@@ -13,6 +13,7 @@ module.exports = async (req, res, next) => {
     let decoded;
     try {
       decoded = jwt.verify(token, JWT_SECRET);
+      console.log("decoded JWT:", decoded);
     } catch {
       return res.status(401).json({ message: "Token invalide ou expiré" });
     }

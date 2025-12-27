@@ -53,7 +53,7 @@ app.use("/api/user", userRoutes);
 app.use("/api/admin", singnupdmin);
 app.use("/api/admin/compte", adminCompte);
 app.use("/api/produits", produitsAdmin);
-app.use("/api/produits", produitsClient);
+app.use("/api/produits/clients", produitsClient);
 app.use("/api/favorites", favorites);
 
 // ❌ SUPPRIMÉ : stockage local images

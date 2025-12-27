@@ -2,9 +2,9 @@ const mongoose = require("mongoose");
 
 const imageSchema = new mongoose.Schema(
   {
-    url: { type: String, required: true },       // URL Cloudinary
-    publicId: { type: String, required: true },  // pour suppression Cloudinary
-    isMain: { type: Boolean, default: false },   // image principale
+    url: { type: String, required: true }, // URL Cloudinary
+    publicId: { type: String, required: true }, // pour suppression Cloudinary
+    isMain: { type: Boolean, default: false }, // image principale
   },
   { _id: false }
 );
@@ -28,6 +28,7 @@ const schemaproduits = new mongoose.Schema(
     stock: { type: Number, default: 0 },
     tailles: { type: [String], default: [] },
     couleurs: { type: [String], default: [] },
+    averageRating: { type: Number, default: 0 },
 
     stockParVariation: {
       type: Map,

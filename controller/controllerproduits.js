@@ -3,180 +3,147 @@ const cloudinary = require("../config/cloudinary");
 
 exports.sauvegarderProduits = async (req, res) => {
   try {
+    // 1️⃣ vérification images
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ message: "Au moins une image est requise" });
     }
 
-    // ===============================
-    // 1. DATA
-    // ===============================
-    const {
-      title,
-      description,
-      price,
-      genre,
-      categorie,
-      badge,
-      tailles,
-      couleurs,
-      stockParVariation
-    } = req.body;
-
-    // ===============================
-    // 2. PARSE JSON
-    // ===============================
-    const parsedTailles = typeof tailles === "string" ? JSON.parse(tailles) : tailles;
-    const parsedCouleurs = typeof couleurs === "string" ? JSON.parse(couleurs) : couleurs;
-    const parsedStock = typeof stockParVariation === "string"
-      ? JSON.parse(stockParVariation)
-      : stockParVariation;
-
-    // ===============================
-    // 3. CALCUL STOCK TOTAL
-    // ===============================
-    let stockTotal = 0;
-    for (const color of Object.keys(parsedStock)) {
-      for (const size of Object.keys(parsedStock[color])) {
-        stockTotal += Number(parsedStock[color][size]) || 0;
-      }
-    }
-
-    // ===============================
-    // 4. IMAGES CLOUDINARY
-    // ===============================
+    // 2️⃣ format images Cloudinary
     const images = req.files.map((file, index) => ({
       url: file.path,
       publicId: file.filename,
       isMain: index === 0,
     }));
 
-    // ===============================
-    // 5. SAUVEGARDE PRODUIT
-    // ===============================
-    const produit = new Produits({
-      title,
-      description,
-      price,
-      genre,
-      categorie,
-      badge: badge || null,
+    // 3️⃣ stockParVariation (JSON depuis FormData)
+    let stockParVariation = {};
+    if (req.body.stockParVariation) {
+      stockParVariation = JSON.parse(req.body.stockParVariation);
+    }
+
+    // 4️⃣ création produit
+    const produit = await Produits.create({
+      title: req.body.title,
+      description: req.body.description,
+      price: Number(req.body.price),
+      stock: Number(req.body.stock) || 0,
+      tailles: req.body.tailles ? JSON.parse(req.body.tailles) : [],
+      couleurs: req.body.couleurs ? JSON.parse(req.body.couleurs) : [],
+      stockParVariation,
+      userId: req.body.userId,
+      genre: req.body.genre,
+      categorie: req.body.categorie,
+      badge: req.body.badge || null,
+      hero: req.body.hero === "true",
       images,
-      tailles: parsedTailles,
-      couleurs: parsedCouleurs,
-      stock: stockTotal,
-      stockParVariation: parsedStock,
-      userId: req.admin._id,
     });
 
-    await produit.save();
-
-    res.status(201).json({
-      message: "Produit créé avec succès",
-      produit,
-    });
+    res.status(201).json(produit);
   } catch (error) {
-    console.error("🔥 ERREUR sauvegarderProduits:", error);
-    res.status(400).json({ message: error.message });
+    res.status(500).json({ message: error.message });
   }
 };
 
 // ===============================
-// MODIFIER UN PRODUIT (Admin / Propriétaire)
+// MODIFIER PRODUIT (Admin / Propriétaire)
 // ===============================
 exports.updateProduit = async (req, res) => {
   try {
     const produit = await Produits.findById(req.params.id);
-    if (!produit)
-      return res.status(404).json({ message: "Produit non trouvé" });
-    if (produit.userId !== req.auth.userId)
-      return res.status(403).json({ message: "Non autorisé" });
-
-    let images = [];
-
-    // 1️⃣ Images existantes à conserver
-    if (req.body.existingImages) {
-      const existing = JSON.parse(req.body.existingImages);
-      images.push(...existing);
+    if (!produit) {
+      return res.status(404).json({ message: "Produit introuvable" });
     }
 
-    // 2️⃣ Upload nouvelles images
+    // --------------------------
+    // 1️⃣ Supprimer des images existantes si demandé
+    // --------------------------
+    if (req.body.imagesToDelete) {
+      // tableau d'IDs Cloudinary à supprimer
+      const idsToDelete = JSON.parse(req.body.imagesToDelete);
+
+      produit.images = produit.images.filter((img) => {
+        if (idsToDelete.includes(img.publicId)) {
+          // supprimer de Cloudinary
+          cloudinary.uploader.destroy(img.publicId);
+          return false; // enlever de tableau
+        }
+        return true;
+      });
+    }
+
+    // --------------------------
+    // 2️⃣ Ajouter nouvelles images uploadées
+    // --------------------------
     if (req.files && req.files.length > 0) {
-      for (const file of req.files) {
-        const result = await cloudinary.uploader.upload(file.path, {
-          folder: "produits",
-        });
-        images.push({
-          url: result.secure_url,
-          publicId: result.public_id,
-          isMain: false, // définir l'image principale après
-        });
-      }
-    }
-
-    // 3️⃣ Définir image principale
-    if (req.body.mainImagePublicId) {
-      images = images.map((img) => ({
-        ...img,
-        isMain: img.publicId === req.body.mainImagePublicId,
+      const newImages = req.files.map((file, index) => ({
+        url: file.path,
+        publicId: file.filename,
+        isMain: false, // on peut gérer différemment si besoin
       }));
-    } else if (images.length > 0) {
-      images[0].isMain = true; // fallback première image
+      produit.images.push(...newImages);
     }
 
-    // 4️⃣ Supprimer les images Cloudinary supprimées
-    const toDelete = produit.images.filter(
-      (oldImg) => !images.find((img) => img.publicId === oldImg.publicId)
-    );
-    for (const img of toDelete) {
-      await cloudinary.uploader.destroy(img.publicId);
-    }
+    // --------------------------
+    // 3️⃣ Mettre à jour les autres champs
+    // --------------------------
+    const champs = [
+      "title",
+      "description",
+      "price",
+      "stock",
+      "tailles",
+      "couleurs",
+      "stockParVariation",
+      "genre",
+      "categorie",
+      "badge",
+      "hero",
+    ];
 
-    // 5️⃣ Parse stockParVariation si string
-    if (req.body.stockParVariation) {
-      req.body.stockParVariation = JSON.parse(req.body.stockParVariation);
-    }
+    champs.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        if (field === "tailles" || field === "couleurs") {
+          produit[field] = JSON.parse(req.body[field]);
+        } else if (field === "stockParVariation") {
+          produit[field] = JSON.parse(req.body[field]);
+        } else if (field === "hero") {
+          produit[field] = req.body[field] === "true";
+        } else if (field === "price" || field === "stock") {
+          produit[field] = Number(req.body[field]);
+        } else {
+          produit[field] = req.body[field];
+        }
+      }
+    });
 
-    // 6️⃣ Mise à jour produit
-    const updatedProduit = await Produits.findByIdAndUpdate(
-      req.params.id,
-      { ...req.body, images },
-      { new: true }
-    );
-
-    res
-      .status(200)
-      .json({ message: "Produit mis à jour", produit: updatedProduit });
+    await produit.save();
+    res.status(200).json(produit);
   } catch (error) {
-    console.error("🔥 ERREUR updateProduit:", error);
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ message: error.message });
   }
 };
 // ===============================
-// SUPPRIMER UN PRODUIT
+// SUPPRIMER PRODUIT
 // ===============================
 exports.deleteProduit = async (req, res) => {
   try {
     const produit = await Produits.findById(req.params.id);
-    if (!produit)
-      return res.status(404).json({ message: "Produit non trouvé" });
+    if (!produit) {
+      return res.status(404).json({ message: "Produit introuvable" });
+    }
 
-    if (produit.userId !== req.auth.userId)
-      return res.status(403).json({ message: "Non autorisé" });
-
-    // Suppression Cloudinary
+    // suppression Cloudinary
     for (const img of produit.images) {
       await cloudinary.uploader.destroy(img.publicId);
     }
 
-    await Produits.deleteOne({ _id: req.params.id });
+    await produit.deleteOne();
 
-    res.status(200).json({ message: "Produit supprimé avec succès" });
+    res.json({ message: "Produit supprimé avec succès" });
   } catch (error) {
-    console.error("🔥 ERREUR deleteProduit:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: error.message });
   }
 };
-
 // ===============================
 // GET PRODUITS avec pagination
 // ===============================
@@ -224,14 +191,15 @@ exports.ajouterCommentaire = async (req, res) => {
       return res.status(404).json({ message: "Produit non trouvé" });
 
     const commentaire = {
-      user: req.auth.userId,
+      user: req.admin ? req.admin._id.toString() : req.auth.userId, // si admin ou client
       message,
       rating,
       createdAt: new Date(),
     };
+
     produit.commentaires.push(commentaire);
 
-    // Mettre à jour averageRating
+    // Recalcul averageRating
     const total = produit.commentaires.reduce((acc, c) => acc + c.rating, 0);
     produit.averageRating = parseFloat(
       (total / produit.commentaires.length).toFixed(1)
@@ -240,13 +208,13 @@ exports.ajouterCommentaire = async (req, res) => {
     await produit.save();
     res.status(201).json(commentaire);
   } catch (err) {
-    console.error("🔥 ERREUR addCommentaire:", err.message);
+    console.error("🔥 ERREUR ajouterCommentaire:", err.message);
     res.status(500).json({ message: "Erreur serveur" });
   }
 };
 
 // ===============================
-// SUPPRIMER COMMENTAIRE (Admin / propriétaire)
+// SUPPRIMER COMMENTAIRE (Admin / Propriétaire)
 // ===============================
 exports.supprimerCommentaire = async (req, res) => {
   try {
@@ -255,7 +223,6 @@ exports.supprimerCommentaire = async (req, res) => {
     if (!produit)
       return res.status(404).json({ message: "Produit non trouvé" });
 
-    // Vérifie si l'utilisateur est admin ou auteur du commentaire
     const commentaire = produit.commentaires.id(commentaireId);
     if (!commentaire)
       return res.status(404).json({ message: "Commentaire non trouvé" });
@@ -278,13 +245,13 @@ exports.supprimerCommentaire = async (req, res) => {
     await produit.save();
     res.status(200).json({ message: "Commentaire supprimé avec succès" });
   } catch (err) {
-    console.error("🔥 ERREUR deleteCommentaire:", err.message);
+    console.error("🔥 ERREUR supprimerCommentaire:", err.message);
     res.status(500).json({ message: "Erreur serveur" });
   }
 };
 
 // ===============================
-// GET COMMENTAIRES d'un produit (Client)
+// GET COMMENTAIRES d'un produit
 // ===============================
 exports.getCommentaires = async (req, res) => {
   try {

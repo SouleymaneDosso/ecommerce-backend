@@ -9,12 +9,14 @@ exports.sauvegarderProduits = async (req, res) => {
   try {
     // 1️⃣ Vérification images
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ message: "Au moins une image est requise" });
+      return res
+        .status(400)
+        .json({ message: "Au moins une image est requise" });
     }
 
     // 2️⃣ Format images depuis Multer + CloudinaryStorage
     const images = req.files.map((file, index) => ({
-      url: file.path,          // contient déjà l'URL publique
+      url: file.path, // contient déjà l'URL publique
       publicId: file.filename, // correspond au public_id Cloudinary
       isMain: index === 0,
     }));
@@ -167,7 +169,10 @@ exports.getProduits = async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    const produits = await Produits.find().skip(skip).limit(limit);
+    const produits = await Produits.find()
+      .skip(skip)
+      .limit(limit)
+      .lean({ virtuals: true });
     res.status(200).json(produits);
   } catch (err) {
     console.error("🔥 ERREUR getProduits:", err.message);

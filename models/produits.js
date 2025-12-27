@@ -66,7 +66,11 @@ const schemaproduits = new mongoose.Schema(
       default: null,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true }, // ✅ active les virtuals dans JSON
+    toObject: { virtuals: true }, // ✅ active les virtuals dans toObject
+  }
 );
 
 schemaproduits.virtual("isNew").get(function () {

@@ -2,23 +2,20 @@ const Produits = require("../models/produits");
 const cloudinary = require("../config/cloudinary");
 
 exports.sauvegarderProduits = async (req, res) => {
-  console.log("req.admin:", req.admin);
   if (!req.admin) {
     return res.status(401).json({ message: "Admin non authentifié" });
   }
 
   try {
-    // 1️⃣ vérification images
+    // 1️⃣ Vérification images
     if (!req.files || req.files.length === 0) {
-      return res
-        .status(400)
-        .json({ message: "Au moins une image est requise" });
+      return res.status(400).json({ message: "Au moins une image est requise" });
     }
 
-    // 2️⃣ format images Cloudinary
+    // 2️⃣ Format images depuis Multer + CloudinaryStorage
     const images = req.files.map((file, index) => ({
-      url: file.path,
-      publicId: file.filename,
+      url: file.path,          // contient déjà l'URL publique
+      publicId: file.filename, // correspond au public_id Cloudinary
       isMain: index === 0,
     }));
 
@@ -28,7 +25,7 @@ exports.sauvegarderProduits = async (req, res) => {
       stockParVariation = JSON.parse(req.body.stockParVariation);
     }
 
-    // 4️⃣ création produit
+    // 4️⃣ Création produit
     const produit = await Produits.create({
       title: req.body.title,
       description: req.body.description,
@@ -47,6 +44,7 @@ exports.sauvegarderProduits = async (req, res) => {
 
     res.status(201).json(produit);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: error.message });
   }
 };

@@ -13,7 +13,7 @@ const produitsClient = require("./router/clientRouteProduits");
 const favorites = require("./router/favoritesRoute");
 const userRoutes = require("./router/userRoutes");
 const adminCompte = require("./router/adminCompteRoute");
-
+const compteRoutes = require("./router/compteRoute");
 // ===============================
 // DATABASE
 // ===============================
@@ -50,6 +50,7 @@ app.use(express.urlencoded({ extended: true }));
 // ROUTES API
 // ===============================
 app.use("/api/user", userRoutes);
+app.use("/api/compte", compteRoutes);
 app.use("/api/admin", singnupdmin);
 app.use("/api/admin/compte", adminCompte);
 app.use("/api/produits", produitsAdmin);

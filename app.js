@@ -29,18 +29,17 @@ mongoose
 // ===============================
 
 // CORS
-app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content, Accept, Content-Type, Authorization"
-  );
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-  );
-  next();
-});
+const cors = require("cors");
+
+app.use(cors({
+  origin: [
+    "https://ecommer-numa.vercel.app"
+  ],
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+}));
+app.options("*", cors());
+
 
 // Body parsers
 app.use(express.json());

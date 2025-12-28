@@ -16,7 +16,8 @@ const server = http.createServer(app);
 // ⚡ Socket.IO
 const { Server } = require("socket.io");
 const io = new Server(server, {
-  cors: { origin: "*" } // autorise toutes les origines
+  cors: { origin: ["https://ecommer-numa.vercel.app"]
+ } // autorise toutes les origines
 });
 app.set("io", io); // pour que les controllers puissent l'utiliser
 

@@ -65,5 +65,10 @@ app.use((err, req, res, next) => {
   console.error("🔥 ERREUR GLOBALE :", err);
   res.status(500).json({ message: err.message });
 });
+// Gestion des routes non trouvées (404)
+app.use((req, res) => {
+  res.status(404).json({ message: "Route non trouvée" });
+});
+
 
 module.exports = app;

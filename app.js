@@ -56,8 +56,7 @@ app.use("/api/produits", produitsAdmin);
 app.use("/api/produits", produitsClient);
 app.use("/api/favorites", favorites);
 
-// ❌ SUPPRIMÉ : stockage local images
-// app.use("/images", express.static(...));
+
 
 // ===============================
 // GESTION ERREURS

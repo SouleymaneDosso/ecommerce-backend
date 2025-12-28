@@ -41,6 +41,7 @@ app.use((req, res, next) => {
   );
   next();
 });
+app.use(cors({ origin: "*/" }));
 
 // Body parsers
 app.use(express.json());

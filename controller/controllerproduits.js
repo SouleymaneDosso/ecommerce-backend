@@ -88,23 +88,23 @@ exports.updateProduit = async (req, res) => {
     }
 
     /* -------- AJOUT NOUVELLES IMAGES -------- */
-let newImagesStartIndex = produit.images.length; // avant push des nouvelles
-if (req.files && req.files.length > 0) {
-  const newImages = req.files.map((file) => ({
-    url: file.path,
-    publicId: file.filename,
-    isMain: false,
-  }));
-  produit.images.push(...newImages);
-}
+    let newImagesStartIndex = produit.images.length; // avant push des nouvelles
+    if (req.files && req.files.length > 0) {
+      const newImages = req.files.map((file) => ({
+        url: file.path,
+        publicId: file.filename,
+        isMain: false,
+      }));
+      produit.images.push(...newImages);
+    }
 
-/* -------- IMAGE PRINCIPALE -------- */
-const totalImages = produit.images.length;
-if (isValidMainIndex(mainIndex, totalImages)) {
-  produit.images.forEach((img, idx) => {
-    img.isMain = idx === mainIndex; // idx = position dans tableau final
-  });
-}
+    /* -------- IMAGE PRINCIPALE -------- */
+    const totalImages = produit.images.length;
+    if (isValidMainIndex(mainIndex, totalImages)) {
+      produit.images.forEach((img, idx) => {
+        img.isMain = idx === mainIndex; // idx = position dans tableau final
+      });
+    }
 
     /* -------- AUTRES CHAMPS -------- */
     const champs = [
@@ -258,7 +258,6 @@ exports.getCommentaires = async (req, res) => {
   }
 };
 
-
 exports.supprimerCommentaire = async (req, res) => {
   try {
     const { produitId, commentaireId } = req.params;
@@ -266,15 +265,23 @@ exports.supprimerCommentaire = async (req, res) => {
     if (!produit)
       return res.status(404).json({ message: "Produit non trouvé" });
 
-    const commentaire = produit.commentaires.id(commentaireId);
+    // ⚡ Chercher le commentaire en convertissant les IDs en string
+    const commentaire = produit.commentaires.find(
+      (c) => c._id.toString() === commentaireId.toString()
+    );
     if (!commentaire)
       return res.status(404).json({ message: "Commentaire non trouvé" });
 
+    // Vérification autorisation
     if (!req.admin && commentaire.user !== req.auth?.userId)
       return res.status(403).json({ message: "Non autorisé" });
 
-    commentaire.remove();
+    // Supprimer le commentaire
+    produit.commentaires = produit.commentaires.filter(
+      (c) => c._id.toString() !== commentaireId.toString()
+    );
 
+    // Recalculer la note moyenne
     produit.averageRating =
       produit.commentaires.length === 0
         ? 0

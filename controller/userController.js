@@ -31,7 +31,7 @@ exports.signup = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 jours
     });
 
-    res.status(201).json({ message: "Utilisateur créé", userId: user._id, username: user.username });
+    res.status(201).json({ message: "Utilisateur créé", userId: user._id, username: user.username , token: token });
   } catch (error) {
     console.error("Signup Error:", error);
     res.status(500).json({ message: "Erreur serveur" });
@@ -63,7 +63,7 @@ exports.login = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
-    res.status(200).json({ userId: user._id, username: user.username });
+    res.status(200).json({ userId: user._id, username: user.username , token: token  });
   } catch (error) {
     console.error("Login Error:", error);
     res.status(500).json({ message: "Erreur serveur" });

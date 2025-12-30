@@ -4,13 +4,10 @@ const {
   creerCommande,
   getCommandeById,
   getCommandesAdmin,
-} = require("../controller/commandeController");
-
-const {
   validerPaiement,
   validerEtapeAdmin,
   paiementSemi,
-} = require("../controller/paiementController");
+} = require("../controller/commandeController");
 
 // Endpoint création commande
 router.post("/commandes", creerCommande);

@@ -99,8 +99,143 @@ const getCommandesAdmin = async (req, res) => {
   }
 };
 
+// PUT /api/commandes/:id/paiement
+const validerPaiement = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { step } = req.body;
+
+    if (!step) return res.status(400).json({ message: "Step requis" });
+
+    const commande = await Commandeapi.findById(id);
+    if (!commande)
+      return res.status(404).json({ message: "Commande non trouvée" });
+
+    const paiementStep = commande.paiements.find((p) => p.step === step);
+    if (!paiementStep)
+      return res.status(404).json({ message: "Étape de paiement non trouvée" });
+
+    if (paiementStep.status === "PAID")
+      return res.status(400).json({ message: "Cette étape a déjà été payée" });
+
+    paiementStep.status = "PAID";
+
+    // Mettre à jour le statut global
+    const toutesPayees = commande.paiements.every((p) => p.status === "PAID");
+    if (toutesPayees) commande.status = "PAID";
+    else commande.status = "PARTIALLY_PAID";
+
+    await commande.save();
+
+    res.status(200).json({ message: `Étape ${step} validée`, commande });
+  } catch (err) {
+    console.error(err);
+    res
+      .status(500)
+      .json({ message: "Erreur lors de la validation du paiement" });
+  }
+};
+
+// PUT /api/admin/commandes/:id/valider-etape
+const validerEtapeAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { step, montantRecu, referenceClient } = req.body;
+
+    if (!step || !montantRecu || !referenceClient)
+      return res.status(400).json({ message: "Tous les champs sont requis" });
+
+    const commande = await Commandeapi.findById(id);
+    if (!commande)
+      return res.status(404).json({ message: "Commande non trouvée" });
+
+    const paiementStep = commande.paiements.find((p) => p.step === step);
+    if (!paiementStep)
+      return res.status(404).json({ message: "Étape de paiement non trouvée" });
+
+    if (montantRecu < paiementStep.amount)
+      return res.status(400).json({ message: "Montant reçu insuffisant" });
+
+    paiementStep.status = "PAID";
+    paiementStep.reference = referenceClient;
+
+    // Mise à jour du statut global
+    const toutesPayees = commande.paiements.every((p) => p.status === "PAID");
+    if (toutesPayees) commande.status = "PAID";
+    else commande.status = "PARTIALLY_PAID";
+
+    await commande.save();
+
+    res
+      .status(200)
+      .json({ message: `Étape ${step} validée par admin`, commande });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Erreur serveur lors de la validation" });
+  }
+};
+
+// POST /api/commandes/:id/paiement-semi
+const paiementSemi = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { numeroPaiement, montant, reference } = req.body;
+
+    if (!numeroPaiement || !montant || !reference)
+      return res.status(400).json({ message: "Tous les champs sont requis" });
+
+    const commande = await Commandeapi.findById(id);
+    if (!commande)
+      return res.status(404).json({ message: "Commande non trouvée" });
+
+    if (!commande.paiementsReçus) commande.paiementsReçus = [];
+
+    commande.paiementsReçus.push({
+      numeroPaiement,
+      montant,
+      reference,
+      date: new Date(),
+    });
+
+    // Mise à jour des étapes
+    if (commande.modePaiement === "installments") {
+      const stepToUpdate = commande.paiements.find(
+        (p) => p.status === "UNPAID"
+      );
+      if (stepToUpdate) {
+        stepToUpdate.status = "PAID";
+        stepToUpdate.reference = reference;
+      }
+    } else {
+      const step = commande.paiements[0];
+      step.status = "PAID";
+      step.reference = reference;
+    }
+
+    // Statut global
+    const toutesPayees = commande.paiements.every((p) => p.status === "PAID");
+    if (toutesPayees) commande.status = "PAID";
+    else if (commande.paiements.some((p) => p.status === "PAID"))
+      commande.status = "PARTIALLY_PAID";
+
+    await commande.save();
+
+    res
+      .status(200)
+      .json({ message: "Paiement enregistré avec succès", commande });
+  } catch (err) {
+    console.error(err);
+    res
+      .status(500)
+      .json({ message: "Erreur serveur lors de l'enregistrement du paiement" });
+  }
+};
+
 module.exports = {
   creerCommande,
   getCommandeById,
-  getCommandesAdmin
+  getCommandesAdmin,
+  validerPaiement,
+  validerEtapeAdmin,
+  paiementSemi,
 };

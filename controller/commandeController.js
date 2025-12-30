@@ -2,7 +2,7 @@ const Commandeapi = require("../models/paiementmodel");
 
 // Générer une référence unique pour chaque étape de paiement
 const generateReference = (commandeId, step) => {
-  return `${commandeId}-${step}-${Date.now()}`;
+  return `${commandeId}-STEP${step}-${Date.now()}`;
 };
 
 // POST /api/commandes
@@ -10,36 +10,34 @@ const creerCommande = async (req, res) => {
   try {
     const { client, panier, total, modePaiement } = req.body;
 
-    // Créer les étapes de paiement
-    let paiements = [];
-    if (modePaiement === "installments") {
-      const montantParEtape = total / 3;
-      for (let i = 1; i <= 3; i++) {
-        paiements.push({
-          step: i,
-          amount: montantParEtape,
-          status: "UNPAID",
-          reference: generateReference("CMD", i),
-        });
-      }
-    } else {
-      paiements.push({
-        step: 1,
-        amount: total,
-        status: "UNPAID",
-        reference: generateReference("CMD", 1),
-      });
-    }
-
-    // Créer la commande
     const nouvelleCommande = new Commandeapi({
       client,
       panier,
       total,
       modePaiement,
-      paiements,
+      paiements: [],
       status: "PENDING",
     });
+
+    // Créer les étapes de paiement
+    if (modePaiement === "installments") {
+      const montantParEtape = total / 3;
+      for (let i = 1; i <= 3; i++) {
+        nouvelleCommande.paiements.push({
+          step: i,
+          amount: montantParEtape,
+          status: "UNPAID",
+          reference: generateReference(nouvelleCommande._id, i),
+        });
+      }
+    } else {
+      nouvelleCommande.paiements.push({
+        step: 1,
+        amount: total,
+        status: "UNPAID",
+        reference: generateReference(nouvelleCommande._id, 1),
+      });
+    }
 
     await nouvelleCommande.save();
 
@@ -54,6 +52,7 @@ const creerCommande = async (req, res) => {
       .json({ message: "Erreur lors de la création de la commande" });
   }
 };
+
 // GET /api/commandes/:id
 const getCommandeById = async (req, res) => {
   try {
@@ -107,11 +106,14 @@ const validerPaiement = async (req, res) => {
 
     if (!step) return res.status(400).json({ message: "Step requis" });
 
+    const stepNumber = Number(step);
+
     const commande = await Commandeapi.findById(id);
     if (!commande)
       return res.status(404).json({ message: "Commande non trouvée" });
 
-    const paiementStep = commande.paiements.find((p) => p.step === step);
+    const paiementStep = commande.paiements.find((p) => p.step === stepNumber);
+
     if (!paiementStep)
       return res.status(404).json({ message: "Étape de paiement non trouvée" });
 
@@ -127,7 +129,7 @@ const validerPaiement = async (req, res) => {
 
     await commande.save();
 
-    res.status(200).json({ message: `Étape ${step} validée`, commande });
+    res.status(200).json({ message: `Étape ${stepNumber} validée`, commande });
   } catch (err) {
     console.error(err);
     res
@@ -145,11 +147,13 @@ const validerEtapeAdmin = async (req, res) => {
     if (!step || !montantRecu || !referenceClient)
       return res.status(400).json({ message: "Tous les champs sont requis" });
 
+    const stepNumber = Number(step);
+
     const commande = await Commandeapi.findById(id);
     if (!commande)
       return res.status(404).json({ message: "Commande non trouvée" });
 
-    const paiementStep = commande.paiements.find((p) => p.step === step);
+    const paiementStep = commande.paiements.find((p) => p.step === stepNumber);
     if (!paiementStep)
       return res.status(404).json({ message: "Étape de paiement non trouvée" });
 
@@ -168,7 +172,7 @@ const validerEtapeAdmin = async (req, res) => {
 
     res
       .status(200)
-      .json({ message: `Étape ${step} validée par admin`, commande });
+      .json({ message: `Étape ${stepNumber} validée par admin`, commande });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Erreur serveur lors de la validation" });
@@ -179,37 +183,31 @@ const validerEtapeAdmin = async (req, res) => {
 const paiementSemi = async (req, res) => {
   try {
     const { id } = req.params;
-    const { numeroPaiement, montant, reference } = req.body;
+    const { numeroPaiement, montant, reference, step } = req.body;
 
-    if (!numeroPaiement || !montant || !reference)
+    if (!numeroPaiement || !montant || !reference || !step)
       return res.status(400).json({ message: "Tous les champs sont requis" });
+
+    const stepNumber = Number(step);
 
     const commande = await Commandeapi.findById(id);
     if (!commande)
       return res.status(404).json({ message: "Commande non trouvée" });
 
-    if (!commande.paiementsReçus) commande.paiementsReçus = [];
+    if (!commande.paiementsRecus) commande.paiementsRecus = [];
 
-    commande.paiementsReçus.push({
+    commande.paiementsRecus.push({
       numeroPaiement,
       montant,
       reference,
       date: new Date(),
     });
 
-    // Mise à jour des étapes
-    if (commande.modePaiement === "installments") {
-      const stepToUpdate = commande.paiements.find(
-        (p) => p.status === "UNPAID"
-      );
-      if (stepToUpdate) {
-        stepToUpdate.status = "PAID";
-        stepToUpdate.reference = reference;
-      }
-    } else {
-      const step = commande.paiements[0];
-      step.status = "PAID";
-      step.reference = reference;
+    // Mettre à jour l'étape spécifique
+    const paiementStep = commande.paiements.find((p) => p.step === stepNumber);
+    if (paiementStep && paiementStep.status === "UNPAID") {
+      paiementStep.status = "PAID";
+      paiementStep.reference = reference;
     }
 
     // Statut global

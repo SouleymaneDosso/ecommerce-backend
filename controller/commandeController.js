@@ -5,10 +5,16 @@ const generateReference = (commandeId, step) => {
   return `${commandeId}-STEP${step}-${Date.now()}`;
 };
 
-// POST /api/commandes
+/* =========================
+   CREATION COMMANDE
+   ========================= */
 const creerCommande = async (req, res) => {
   try {
     const { client, panier, total, modePaiement, servicePaiement } = req.body;
+
+    if (!client || !panier || !total || !servicePaiement) {
+      return res.status(400).json({ message: "Champs requis manquants" });
+    }
 
     const nouvelleCommande = new Commandeapi({
       client,
@@ -16,60 +22,59 @@ const creerCommande = async (req, res) => {
       total,
       modePaiement,
       servicePaiement,
-      paiements: [], // sera créé après si installments
-      status: "PENDING",
+      paiements: [],
+      paiementsRecus: [],
+      statusCommande: "PENDING",
     });
 
-    // Création automatique des étapes si paiement en plusieurs fois
+    // Créer les étapes de paiement
     if (modePaiement === "installments") {
       const montantParEtape = total / 3;
       for (let i = 1; i <= 3; i++) {
         nouvelleCommande.paiements.push({
           step: i,
-          amount: montantParEtape,
+          amountExpected: montantParEtape,
           status: "UNPAID",
-          reference: `${nouvelleCommande._id}-STEP${i}-${Date.now()}`,
+          reference: generateReference(nouvelleCommande._id, i),
+          validatedAt: null,
         });
       }
     } else {
       nouvelleCommande.paiements.push({
         step: 1,
-        amount: total,
+        amountExpected: total,
         status: "UNPAID",
-        reference: `${nouvelleCommande._id}-STEP1-${Date.now()}`,
+        reference: generateReference(nouvelleCommande._id, 1),
+        validatedAt: null,
       });
     }
 
     await nouvelleCommande.save();
     res.status(201).json({ message: "Commande créée avec succès", commande: nouvelleCommande });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Erreur lors de la création de la commande", error: error.message });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Erreur lors de la création de la commande", error: err.message });
   }
 };
 
-
-// GET /api/commandes/:id
+/* =========================
+   GET COMMANDE PAR ID
+   ========================= */
 const getCommandeById = async (req, res) => {
   try {
     const { id } = req.params;
-
     const commande = await Commandeapi.findById(id);
-
-    if (!commande) {
-      return res.status(404).json({ message: "Commande introuvable" });
-    }
-
+    if (!commande) return res.status(404).json({ message: "Commande introuvable" });
     res.status(200).json(commande);
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Erreur serveur" });
   }
 };
 
-/////ADMIN///////
-
-// GET /api/admin/commandes?page=1&limit=10
+/* =========================
+   GET COMMANDES ADMIN
+   ========================= */
 const getCommandesAdmin = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -94,137 +99,99 @@ const getCommandesAdmin = async (req, res) => {
   }
 };
 
-// PUT /api/commandes/:id/paiement
-const validerPaiement = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { step } = req.body;
-
-    if (!step) return res.status(400).json({ message: "Step requis" });
-
-    const stepNumber = Number(step);
-
-    const commande = await Commandeapi.findById(id);
-    if (!commande)
-      return res.status(404).json({ message: "Commande non trouvée" });
-
-    const paiementStep = commande.paiements.find((p) => p.step === stepNumber);
-
-    if (!paiementStep)
-      return res.status(404).json({ message: "Étape de paiement non trouvée" });
-
-    if (paiementStep.status === "PAID")
-      return res.status(400).json({ message: "Cette étape a déjà été payée" });
-
-    paiementStep.status = "PAID";
-
-    // Mettre à jour le statut global
-    const toutesPayees = commande.paiements.every((p) => p.status === "PAID");
-    if (toutesPayees) commande.status = "PAID";
-    else commande.status = "PARTIALLY_PAID";
-
-    await commande.save();
-
-    res.status(200).json({ message: `Étape ${stepNumber} validée`, commande });
-  } catch (err) {
-    console.error(err);
-    res
-      .status(500)
-      .json({ message: "Erreur lors de la validation du paiement" });
-  }
-};
-
-// PUT /api/admin/commandes/:id/valider-etape
-const validerEtapeAdmin = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { step, montantRecu, referenceClient } = req.body;
-
-    if (!step || !montantRecu || !referenceClient)
-      return res.status(400).json({ message: "Tous les champs sont requis" });
-
-    const stepNumber = Number(step);
-
-    const commande = await Commandeapi.findById(id);
-    if (!commande)
-      return res.status(404).json({ message: "Commande non trouvée" });
-
-    const paiementStep = commande.paiements.find((p) => p.step === stepNumber);
-    if (!paiementStep)
-      return res.status(404).json({ message: "Étape de paiement non trouvée" });
-
-    if (montantRecu < paiementStep.amount)
-      return res.status(400).json({ message: "Montant reçu insuffisant" });
-
-    paiementStep.status = "PAID";
-    paiementStep.reference = referenceClient;
-
-    // Mise à jour du statut global
-    const toutesPayees = commande.paiements.every((p) => p.status === "PAID");
-    if (toutesPayees) commande.status = "PAID";
-    else commande.status = "PARTIALLY_PAID";
-
-    await commande.save();
-
-    res
-      .status(200)
-      .json({ message: `Étape ${stepNumber} validée par admin`, commande });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Erreur serveur lors de la validation" });
-  }
-};
-
-// POST /api/commandes/:id/paiement-semi
+/* =========================
+   PAIEMENT SEMI-MANUEL (CLIENT)
+   ========================= */
 const paiementSemi = async (req, res) => {
   try {
     const { id } = req.params;
-    const { numeroPaiement, montant, reference } = req.body;
+    const { step, numeroClient, montantEnvoye, reference, service } = req.body;
 
-    if (!numeroPaiement || !montant || !reference)
-      return res.status(400).json({ message: "Tous les champs sont requis" });
-
-    const commande = await Commandeapi.findById(id);
-    if (!commande) return res.status(404).json({ message: "Commande non trouvée" });
-
-    if (!commande.paiementsRecus) commande.paiementsRecus = [];
-
-    // Ajouter le paiement reçu
-    commande.paiementsRecus.push({
-      numeroPaiement,
-      montant,
-      reference,
-      date: new Date(),
-    });
-
-    // Trouver la première étape UNPAID
-    const paiementStep = commande.paiements.find((p) => p.status === "UNPAID");
-    if (paiementStep) {
-      paiementStep.status = "PAID";
-      paiementStep.reference = reference;
+    if (!step || !numeroClient || !montantEnvoye || !reference || !service) {
+      return res.status(400).json({ message: "Champs manquants" });
     }
 
-    // Mettre à jour le statut global
-    const toutesPayees = commande.paiements.every((p) => p.status === "PAID");
-    if (toutesPayees) commande.status = "PAID";
-    else if (commande.paiements.some((p) => p.status === "PAID"))
-      commande.status = "PARTIALLY_PAID";
+    const commande = await Commandeapi.findById(id);
+    if (!commande) return res.status(404).json({ message: "Commande introuvable" });
+
+    const paiementStep = commande.paiements.find(p => p.step === Number(step));
+    if (!paiementStep) return res.status(404).json({ message: "Étape invalide" });
+
+    // Ajouter paiement reçu en PENDING
+    commande.paiementsRecus.push({
+      step: Number(step),
+      service,
+      numeroClient,
+      reference,
+      montantEnvoye,
+      status: "PENDING",
+      submittedAt: new Date(),
+    });
+
+    // Marquer l'étape comme PENDING si elle était UNPAID
+    if (paiementStep.status === "UNPAID") paiementStep.status = "PENDING";
 
     await commande.save();
 
-    res.status(200).json({ message: "Paiement enregistré avec succès", commande });
+    res.status(200).json({
+      message: "Paiement soumis, en attente de validation admin",
+      commande,
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Erreur serveur lors de l'enregistrement du paiement" });
+    res.status(500).json({ message: "Erreur paiement semi-manuel" });
   }
 };
 
+/* =========================
+   CONFIRMER PAIEMENT (ADMIN)
+   ========================= */
+const confirmerPaiementAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { paiementRecuId, adminComment } = req.body;
+
+    const commande = await Commandeapi.findById(id);
+    if (!commande) return res.status(404).json({ message: "Commande introuvable" });
+
+    const paiementRecu = commande.paiementsRecus.id(paiementRecuId);
+    if (!paiementRecu) return res.status(404).json({ message: "Paiement non trouvé" });
+
+    if (paiementRecu.status === "CONFIRMED") {
+      return res.status(400).json({ message: "Paiement déjà confirmé" });
+    }
+
+    // Confirmer le paiement
+    paiementRecu.status = "CONFIRMED";
+    paiementRecu.confirmedAt = new Date();
+    paiementRecu.adminComment = adminComment || "";
+
+    // Mettre à jour l'étape correspondante
+    const paiementStep = commande.paiements.find(p => p.step === paiementRecu.step);
+    if (paiementStep) {
+      paiementStep.status = "PAID";
+      paiementStep.validatedAt = new Date();
+    }
+
+    // Mettre à jour le statut global
+    if (commande.paiements.every(p => p.status === "PAID")) {
+      commande.statusCommande = "PAID";
+    } else {
+      commande.statusCommande = "PARTIALLY_PAID";
+    }
+
+    await commande.save();
+    res.status(200).json({ message: "Paiement confirmé", commande });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Erreur validation admin" });
+  }
+};
 
 module.exports = {
   creerCommande,
   getCommandeById,
   getCommandesAdmin,
-  validerPaiement,
-  validerEtapeAdmin,
   paiementSemi,
+  confirmerPaiementAdmin,
 };

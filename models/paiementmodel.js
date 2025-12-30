@@ -1,24 +1,88 @@
 const mongoose = require("mongoose");
 
-// Sous-schema pour chaque étape de paiement
+/* =========================
+   ÉTAPES DE PAIEMENT (THÉORIE)
+   ========================= */
 const PaiementStepSchema = new mongoose.Schema({
-  step: { type: Number, required: true },
-  amount: { type: Number, required: true, min: 0 },
-  status: { type: String, enum: ["UNPAID", "PAID"], default: "UNPAID" },
-  reference: { type: String },
+  step: {
+    type: Number,
+    required: true,
+  },
+
+  amountExpected: {
+    type: Number,
+    required: true,
+    min: 0,
+  },
+
+  status: {
+    type: String,
+    enum: ["UNPAID", "PENDING", "PAID"],
+    default: "UNPAID",
+  },
+
+  validatedAt: {
+    type: Date,
+  },
 });
 
-// Sous-schema pour chaque paiement reçu
+/* =========================
+   PAIEMENT ENVOYÉ PAR LE CLIENT (RÉALITÉ)
+   ========================= */
 const PaiementRecuSchema = new mongoose.Schema({
-  numeroPaiement: { type: String, required: true },
-  montant: { type: Number, required: true, min: 0 },
-  reference: { type: String, required: true },
-  date: { type: Date, default: Date.now },
+  step: {
+    type: Number,
+    required: true, // 🔑 étape concernée
+  },
+
+  service: {
+    type: String,
+    enum: ["orange", "wave"],
+    required: true,
+  },
+
+  numeroClient: {
+    type: String,
+    required: true, // 📱 numéro utilisé pour payer
+  },
+
+  reference: {
+    type: String,
+    required: true, // 🧾 ID de transaction
+  },
+
+  montantEnvoye: {
+    type: Number,
+    required: true,
+    min: 0,
+  },
+
+  status: {
+    type: String,
+    enum: ["PENDING", "CONFIRMED", "REJECTED"],
+    default: "PENDING",
+  },
+
+  adminComment: {
+    type: String,
+  },
+
+  submittedAt: {
+    type: Date,
+    default: Date.now,
+  },
+
+  confirmedAt: {
+    type: Date,
+  },
 });
 
-// Schema principal de la commande
+/* =========================
+   COMMANDE
+   ========================= */
 const CommandeSchema = new mongoose.Schema(
   {
+    /* ----- CLIENT ----- */
     client: {
       nom: { type: String, required: true },
       prenom: { type: String, required: true },
@@ -27,36 +91,52 @@ const CommandeSchema = new mongoose.Schema(
       codePostal: { type: String, required: true },
       pays: { type: String, required: true },
     },
+
+    /* ----- PANIER ----- */
     panier: [
       {
         produitId: { type: String, required: true },
         nom: { type: String, required: true },
-        prix: { type: Number, required: true, min: 0 },
-        quantite: { type: Number, required: true, min: 1 },
+        prix: { type: Number, required: true },
+        quantite: { type: Number, required: true },
         couleur: { type: String },
         taille: { type: String },
       },
     ],
-    total: { type: Number, required: true, min: 0 },
+
+    total: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
+    /* ----- CONFIG PAIEMENT ----- */
     modePaiement: {
       type: String,
       enum: ["full", "installments"],
       default: "full",
     },
+
     servicePaiement: {
       type: String,
       enum: ["orange", "wave"],
-      default: "orange",
+      required: true,
     },
-    paiements: [PaiementStepSchema],
-    paiementsRecus: [PaiementRecuSchema],
-    status: {
+
+    /* ----- PAIEMENTS ----- */
+    paiements: [PaiementStepSchema], // ce qui est attendu
+    paiementsRecus: [PaiementRecuSchema], // ce que le client envoie
+
+    /* ----- STATUT COMMANDE ----- */
+    statusCommande: {
       type: String,
       enum: ["PENDING", "PARTIALLY_PAID", "PAID"],
       default: "PENDING",
     },
   },
-  { timestamps: true } // createdAt & updatedAt automatiques
+  {
+    timestamps: true, // createdAt / updatedAt
+  }
 );
 
 module.exports = mongoose.model("Commandeapi", CommandeSchema);

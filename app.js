@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const commandeRoutes = require("./router/commandeRoutes");
 
 const app = express();
 
@@ -48,6 +49,7 @@ app.use(express.urlencoded({ extended: true }));
 // ===============================
 app.use("/api/user", userRoutes);
 app.use("/api/compte", compteRoutes);
+app.use("/api", commandeRoutes);
 app.use("/api/admin", singnupdmin);
 app.use("/api/admin/compte", adminCompte);
 app.use("/api/produits", produitsAdmin);

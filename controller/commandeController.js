@@ -8,18 +8,19 @@ const generateReference = (commandeId, step) => {
 // POST /api/commandes
 const creerCommande = async (req, res) => {
   try {
-    const { client, panier, total, modePaiement } = req.body;
+    const { client, panier, total, modePaiement, servicePaiement } = req.body;
 
     const nouvelleCommande = new Commandeapi({
       client,
       panier,
       total,
       modePaiement,
-      paiements: [],
+      servicePaiement,
+      paiements: [], // sera créé après si installments
       status: "PENDING",
     });
 
-    // Créer les étapes de paiement
+    // Création automatique des étapes si paiement en plusieurs fois
     if (modePaiement === "installments") {
       const montantParEtape = total / 3;
       for (let i = 1; i <= 3; i++) {
@@ -27,7 +28,7 @@ const creerCommande = async (req, res) => {
           step: i,
           amount: montantParEtape,
           status: "UNPAID",
-          reference: generateReference(nouvelleCommande._id, i),
+          reference: `${nouvelleCommande._id}-STEP${i}-${Date.now()}`,
         });
       }
     } else {
@@ -35,23 +36,18 @@ const creerCommande = async (req, res) => {
         step: 1,
         amount: total,
         status: "UNPAID",
-        reference: generateReference(nouvelleCommande._id, 1),
+        reference: `${nouvelleCommande._id}-STEP1-${Date.now()}`,
       });
     }
 
     await nouvelleCommande.save();
-
-    res.status(201).json({
-      message: "Commande créée avec succès",
-      commande: nouvelleCommande,
-    });
+    res.status(201).json({ message: "Commande créée avec succès", commande: nouvelleCommande });
   } catch (error) {
     console.error(error);
-    res
-      .status(500)
-      .json({ message: "Erreur lors de la création de la commande" });
+    res.status(500).json({ message: "Erreur lors de la création de la commande", error: error.message });
   }
 };
+
 
 // GET /api/commandes/:id
 const getCommandeById = async (req, res) => {
@@ -183,19 +179,17 @@ const validerEtapeAdmin = async (req, res) => {
 const paiementSemi = async (req, res) => {
   try {
     const { id } = req.params;
-    const { numeroPaiement, montant, reference, step } = req.body;
+    const { numeroPaiement, montant, reference } = req.body;
 
-    if (!numeroPaiement || !montant || !reference || !step)
+    if (!numeroPaiement || !montant || !reference)
       return res.status(400).json({ message: "Tous les champs sont requis" });
 
-    const stepNumber = Number(step);
-
     const commande = await Commandeapi.findById(id);
-    if (!commande)
-      return res.status(404).json({ message: "Commande non trouvée" });
+    if (!commande) return res.status(404).json({ message: "Commande non trouvée" });
 
     if (!commande.paiementsRecus) commande.paiementsRecus = [];
 
+    // Ajouter le paiement reçu
     commande.paiementsRecus.push({
       numeroPaiement,
       montant,
@@ -203,14 +197,14 @@ const paiementSemi = async (req, res) => {
       date: new Date(),
     });
 
-    // Mettre à jour l'étape spécifique
-    const paiementStep = commande.paiements.find((p) => p.step === stepNumber);
-    if (paiementStep && paiementStep.status === "UNPAID") {
+    // Trouver la première étape UNPAID
+    const paiementStep = commande.paiements.find((p) => p.status === "UNPAID");
+    if (paiementStep) {
       paiementStep.status = "PAID";
       paiementStep.reference = reference;
     }
 
-    // Statut global
+    // Mettre à jour le statut global
     const toutesPayees = commande.paiements.every((p) => p.status === "PAID");
     if (toutesPayees) commande.status = "PAID";
     else if (commande.paiements.some((p) => p.status === "PAID"))
@@ -218,16 +212,13 @@ const paiementSemi = async (req, res) => {
 
     await commande.save();
 
-    res
-      .status(200)
-      .json({ message: "Paiement enregistré avec succès", commande });
+    res.status(200).json({ message: "Paiement enregistré avec succès", commande });
   } catch (err) {
     console.error(err);
-    res
-      .status(500)
-      .json({ message: "Erreur serveur lors de l'enregistrement du paiement" });
+    res.status(500).json({ message: "Erreur serveur lors de l'enregistrement du paiement" });
   }
 };
+
 
 module.exports = {
   creerCommande,

@@ -54,11 +54,6 @@ const creerCommande = async (req, res) => {
       .json({ message: "Erreur lors de la création de la commande" });
   }
 };
-
-module.exports = {
-  creerCommande,
-};
-
 // GET /api/commandes/:id
 const getCommandeById = async (req, res) => {
   try {
@@ -77,7 +72,35 @@ const getCommandeById = async (req, res) => {
   }
 };
 
+/////ADMIN///////
+
+// GET /api/admin/commandes?page=1&limit=10
+const getCommandesAdmin = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const total = await Commandeapi.countDocuments();
+    const commandes = await Commandeapi.find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    res.status(200).json({
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+      commandes,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Erreur serveur" });
+  }
+};
+
 module.exports = {
   creerCommande,
   getCommandeById,
+  getCommandesAdmin
 };

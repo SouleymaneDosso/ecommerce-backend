@@ -2,7 +2,6 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-const commandeRoutes = require("./router/commandeRoutes");
 
 const app = express();
 
@@ -11,11 +10,10 @@ const app = express();
 // ===============================
 const singnupdmin = require("./router/adminroute");
 const produitsAdmin = require("./router/adminRouteProduits");
+const commandeRoutes = require("./router/commandeRoutes");
 const produitsClient = require("./router/clientRouteProduits");
 const favorites = require("./router/favoritesRoute");
 const userRoutes = require("./router/userRoutes");
-const adminCompte = require("./router/adminCompteRoute");
-const compteRoutes = require("./router/compteRoute");
 // ===============================
 // DATABASE
 // ===============================
@@ -48,10 +46,8 @@ app.use(express.urlencoded({ extended: true }));
 // ROUTES API
 // ===============================
 app.use("/api/user", userRoutes);
-app.use("/api/compte", compteRoutes);
 app.use("/api", commandeRoutes);
 app.use("/api/admin", singnupdmin);
-app.use("/api/admin/compte", adminCompte);
 app.use("/api/produits", produitsAdmin);
 app.use("/api/produits", produitsClient);
 app.use("/api/favorites", favorites);

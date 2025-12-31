@@ -10,7 +10,7 @@ const app = express();
 // ===============================
 const singnupdmin = require("./router/adminroute");
 const produitsAdmin = require("./router/adminRouteProduits");
-const compteClient = require("./router/commandeRoutes")
+const compteClient = require("./router/compteRoutes")
 const commandeRoutes = require("./router/commandeRoutes");
 const produitsClient = require("./router/clientRouteProduits");
 const favorites = require("./router/favoritesRoute");

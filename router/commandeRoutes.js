@@ -9,21 +9,46 @@ const {
   confirmerPaiementAdmin,
 } = require("../controller/commandeController");
 
+const authClient = require("../authentification/authClient");
+
 /* =========================
-   ROUTES CLIENT
+   ROUTES CLIENT SÉCURISÉES
    ========================= */
 
-// Créer une commande
-router.post("/commandes", creerCommande);
+// Créer une commande (le userId vient du token)
+router.post("/commandes", authClient, creerCommande);
 
-// Récupérer une commande par ID
-router.get("/commandes/:id", getCommandeById);
+// Récupérer une commande par ID (vérifie que c'est bien le client qui la possède)
+router.get("/commandes/:id", authClient, async (req, res, next) => {
+  try {
+    const commande = await getCommandeById(req, res); // récupère la commande
+    if (!commande) return; // getCommandeById gère l'erreur
+    if (commande.client.userId.toString() !== req.auth.userId) {
+      return res.status(403).json({ message: "Accès refusé : commande d'un autre utilisateur" });
+    }
+    res.status(200).json(commande);
+  } catch (err) {
+    next(err);
+  }
+});
 
-// Soumettre un paiement semi-manuel (en attente de validation admin)
-router.post("/commandes/:id/paiement-semi", paiementSemi);
+// Soumettre un paiement semi-manuel (vérifie que la commande appartient au client)
+router.post("/commandes/:id/paiement-semi", authClient, async (req, res, next) => {
+  try {
+    const commande = await require("../models/paiementmodel").findById(req.params.id);
+    if (!commande) return res.status(404).json({ message: "Commande introuvable" });
+    if (commande.client.userId.toString() !== req.auth.userId) {
+      return res.status(403).json({ message: "Accès refusé : commande d'un autre utilisateur" });
+    }
+    // Passe au controller existant
+    await paiementSemi(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
 
 /* =========================
-   ROUTES ADMIN
+   ROUTES ADMIN (inchangées)
    ========================= */
 
 // Récupérer toutes les commandes (pagination)

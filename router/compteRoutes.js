@@ -5,5 +5,4 @@ const authClient = require("../authentification/authClient");
 
 // Route GET /api/compte
 router.get("/", authClient, compteController.getCompte);
-
 module.exports = router;

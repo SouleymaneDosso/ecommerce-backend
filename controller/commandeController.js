@@ -53,20 +53,16 @@ const creerCommande = async (req, res) => {
     }
 
     await nouvelleCommande.save();
-    res
-      .status(201)
-      .json({
-        message: "Commande créée avec succès",
-        commande: nouvelleCommande,
-      });
+    res.status(201).json({
+      message: "Commande créée avec succès",
+      commande: nouvelleCommande,
+    });
   } catch (err) {
     console.error(err);
-    res
-      .status(500)
-      .json({
-        message: "Erreur lors de la création de la commande",
-        error: err.message,
-      });
+    res.status(500).json({
+      message: "Erreur lors de la création de la commande",
+      error: err.message,
+    });
   }
 };
 

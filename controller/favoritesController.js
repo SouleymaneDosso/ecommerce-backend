@@ -5,10 +5,11 @@ const Produits = require("../models/produits");
 exports.getFavorites = async (req, res) => {
   try {
     const favorites = await Favorite.find({ userId: req.auth.userId })
-      .populate("productId"); // on récupère les infos produit
+      .populate("productId"); // remplit les infos produit
     res.status(200).json(favorites);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error("Erreur getFavorites:", error);
+    res.status(500).json({ message: "Erreur serveur" });
   }
 };
 
@@ -21,17 +22,33 @@ exports.toggleFavorite = async (req, res) => {
     const existing = await Favorite.findOne({ userId: req.auth.userId, productId });
 
     if (existing) {
-      // Supprimer du favori
       await Favorite.findByIdAndDelete(existing._id);
       return res.status(200).json({ message: "Favori retiré", active: false });
     }
 
-    // Ajouter au favori
     const newFav = new Favorite({ userId: req.auth.userId, productId });
     await newFav.save();
     res.status(201).json({ message: "Favori ajouté", active: true });
 
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error("Erreur toggleFavorite:", error);
+    res.status(500).json({ message: "Erreur serveur" });
+  }
+};
+
+// 🔹 Supprimer un favori spécifique (sécurisé)
+exports.deleteFavorite = async (req, res) => {
+  try {
+    const fav = await Favorite.findOneAndDelete({
+      _id: req.params.id,
+      userId: req.auth.userId
+    });
+
+    if (!fav) return res.status(404).json({ message: "Favori introuvable ou non autorisé" });
+
+    res.status(200).json({ message: "Favori supprimé" });
+  } catch (error) {
+    console.error("Erreur deleteFavorite:", error);
+    res.status(500).json({ message: "Erreur serveur" });
   }
 };

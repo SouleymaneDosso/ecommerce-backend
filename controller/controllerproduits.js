@@ -178,11 +178,12 @@ exports.getProduits = async (req, res) => {
     const skip = (page - 1) * limit;
 
     const produits = await Produits.find()
-      .sort({ createdAt: -1 }) // nouveaux d'abord
+      .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .lean({ virtuals: true }); // virtuals inclues
 
-    res.status(200).json(produits.map((p) => p.toJSON()));
+    res.status(200).json(produits); // pas de toJSON()
   } catch (err) {
     console.error("🔥 getProduits:", err.message);
     res.status(500).json({ message: "Erreur serveur" });
@@ -194,11 +195,13 @@ exports.getProduits = async (req, res) => {
 ================================ */
 exports.getProduitById = async (req, res) => {
   try {
-    const produit = await Produits.findById(req.params.id);
+    const produit = await Produits.findById(req.params.id).lean({
+      virtuals: true,
+    });
     if (!produit)
       return res.status(404).json({ message: "Produit non trouvé" });
 
-    res.status(200).json(produit.toJSON());
+    res.status(200).json(produit); // pas de toJSON()
   } catch (err) {
     console.error("🔥 getProduitById:", err.message);
     res.status(500).json({ message: "Erreur serveur" });

@@ -131,7 +131,6 @@ const CommandeSchema = new mongoose.Schema(
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         required: true,
-        index: true,
       },
       nom: { type: String, required: true },
       prenom: { type: String, required: true },
@@ -183,7 +182,6 @@ const CommandeSchema = new mongoose.Schema(
       type: String,
       enum: ["PENDING", "PARTIALLY_PAID", "PAID"],
       default: "PENDING",
-      index: true,
     },
   },
   {

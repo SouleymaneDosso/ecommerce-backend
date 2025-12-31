@@ -84,6 +84,11 @@ const CommandeSchema = new mongoose.Schema(
   {
     /* ----- CLIENT ----- */
     client: {
+      userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+      },
       nom: { type: String, required: true },
       prenom: { type: String, required: true },
       adresse: { type: String, required: true },

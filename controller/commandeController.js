@@ -17,7 +17,10 @@ const creerCommande = async (req, res) => {
     }
 
     const nouvelleCommande = new Commandeapi({
-      client,
+      client: {
+        userId: req.auth.userId,
+        ...client,
+      },
       panier,
       total,
       modePaiement,
@@ -50,10 +53,20 @@ const creerCommande = async (req, res) => {
     }
 
     await nouvelleCommande.save();
-    res.status(201).json({ message: "Commande créée avec succès", commande: nouvelleCommande });
+    res
+      .status(201)
+      .json({
+        message: "Commande créée avec succès",
+        commande: nouvelleCommande,
+      });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Erreur lors de la création de la commande", error: err.message });
+    res
+      .status(500)
+      .json({
+        message: "Erreur lors de la création de la commande",
+        error: err.message,
+      });
   }
 };
 
@@ -64,7 +77,8 @@ const getCommandeById = async (req, res) => {
   try {
     const { id } = req.params;
     const commande = await Commandeapi.findById(id);
-    if (!commande) return res.status(404).json({ message: "Commande introuvable" });
+    if (!commande)
+      return res.status(404).json({ message: "Commande introuvable" });
     res.status(200).json(commande);
   } catch (err) {
     console.error(err);
@@ -112,10 +126,14 @@ const paiementSemi = async (req, res) => {
     }
 
     const commande = await Commandeapi.findById(id);
-    if (!commande) return res.status(404).json({ message: "Commande introuvable" });
+    if (!commande)
+      return res.status(404).json({ message: "Commande introuvable" });
 
-    const paiementStep = commande.paiements.find(p => p.step === Number(step));
-    if (!paiementStep) return res.status(404).json({ message: "Étape invalide" });
+    const paiementStep = commande.paiements.find(
+      (p) => p.step === Number(step)
+    );
+    if (!paiementStep)
+      return res.status(404).json({ message: "Étape invalide" });
 
     // Ajouter paiement reçu en PENDING
     commande.paiementsRecus.push({
@@ -152,10 +170,12 @@ const confirmerPaiementAdmin = async (req, res) => {
     const { paiementRecuId, adminComment } = req.body;
 
     const commande = await Commandeapi.findById(id);
-    if (!commande) return res.status(404).json({ message: "Commande introuvable" });
+    if (!commande)
+      return res.status(404).json({ message: "Commande introuvable" });
 
     const paiementRecu = commande.paiementsRecus.id(paiementRecuId);
-    if (!paiementRecu) return res.status(404).json({ message: "Paiement non trouvé" });
+    if (!paiementRecu)
+      return res.status(404).json({ message: "Paiement non trouvé" });
 
     if (paiementRecu.status === "CONFIRMED") {
       return res.status(400).json({ message: "Paiement déjà confirmé" });
@@ -167,14 +187,16 @@ const confirmerPaiementAdmin = async (req, res) => {
     paiementRecu.adminComment = adminComment || "";
 
     // Mettre à jour l'étape correspondante
-    const paiementStep = commande.paiements.find(p => p.step === paiementRecu.step);
+    const paiementStep = commande.paiements.find(
+      (p) => p.step === paiementRecu.step
+    );
     if (paiementStep) {
       paiementStep.status = "PAID";
       paiementStep.validatedAt = new Date();
     }
 
     // Mettre à jour le statut global
-    if (commande.paiements.every(p => p.status === "PAID")) {
+    if (commande.paiements.every((p) => p.status === "PAID")) {
       commande.statusCommande = "PAID";
     } else {
       commande.statusCommande = "PARTIALLY_PAID";

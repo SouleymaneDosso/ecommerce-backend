@@ -86,11 +86,13 @@ const PaiementRecuSchema = new mongoose.Schema(
 /* =========================
    PRODUITS COMMANDÉS
    ========================= */
+/* =========================
+   PRODUITS COMMANDÉS
+   ========================= */
 const PanierItemSchema = new mongoose.Schema(
   {
     produitId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Produit",
+      type: String, // ✅ changer ObjectId en String pour accepter "6952e5db2bfb1d6585abd404_noir_m"
       required: true,
     },
 
@@ -116,6 +118,7 @@ const PanierItemSchema = new mongoose.Schema(
   },
   { _id: false }
 );
+
 
 /* =========================
    COMMANDE

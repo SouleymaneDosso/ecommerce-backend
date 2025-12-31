@@ -8,8 +8,9 @@ exports.getCompte = async (req, res) => {
     const user = await User.findById(req.auth.userId).select("-password");
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable" });
 
-    // 2️⃣ Récupérer les commandes du client
-    const commandes = await Commandeapi.find({ "client.userId": req.auth.userId });
+    // 2️⃣ Récupérer les commandes du client et remplir les infos produit
+    const commandes = await Commandeapi.find({ "client.userId": req.auth.userId })
+      .populate("panier.produitId");
 
     // 3️⃣ Récupérer les favoris de l'utilisateur
     const favorites = await Favorite.find({ userId: req.auth.userId })

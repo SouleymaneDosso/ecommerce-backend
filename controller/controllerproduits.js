@@ -249,6 +249,29 @@ exports.ajouterCommentaire = async (req, res) => {
   }
 };
 
+// virtual backend//////
+exports.getNewProduits = async (req, res) => {
+  try {
+    // Nombre de jours pour considérer un produit comme "nouveau"
+    const days = Number(process.env.NEW_PRODUCT_DAYS) || 7;
+
+    // Date limite : tout ce qui a été créé après cette date est "nouveau"
+    const dateLimit = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    // Récupération des produits nouveaux
+    const produits = await Produits.find({
+      createdAt: { $gte: dateLimit },
+    })
+      .sort({ createdAt: -1 }) // les plus récents en premier
+      .limit(10); // optionnel : limite le nombre de produits
+
+    res.status(200).json(produits);
+  } catch (err) {
+    console.error("🔥 getNewProduits:", err.message);
+    res.status(500).json({ message: "Erreur serveur" });
+  }
+};
+
 /* ===============================
    COMMENTAIRES
 ================================ */

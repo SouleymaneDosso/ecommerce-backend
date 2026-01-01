@@ -72,14 +72,4 @@ const schemaproduits = new mongoose.Schema(
     toObject: { virtuals: true }, // ✅ active les virtuals dans toObject
   }
 );
-
-schemaproduits.virtual("isNew").get(function () {
-  if (!this.createdAt) return false;
-
-  const created = new Date(this.createdAt); // ✅ FIX
-  const days = Number(process.env.NEW_PRODUCT_DAYS) || 7;
-  const now = new Date();
-
-  return now - created < days * 24 * 60 * 60 * 1000;
-});
 module.exports = mongoose.model("Produits", schemaproduits);

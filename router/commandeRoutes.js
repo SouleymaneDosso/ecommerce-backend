@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const Commandeapi = require("../models/paiementmodel");
 
 const {
   creerCommande,
@@ -19,33 +20,40 @@ const authClient = require("../authentification/authClient");
 router.post("/commandes", authClient, creerCommande);
 
 // Récupérer une commande par ID (vérifie que c'est bien le client qui la possède)
-router.get("/commandes/:id", authClient, async (req, res, next) => {
-  try {
-    const commande = await getCommandeById(req, res); // récupère la commande
-    if (!commande) return; // getCommandeById gère l'erreur
-    if (commande.client.userId.toString() !== req.auth.userId) {
-      return res.status(403).json({ message: "Accès refusé : commande d'un autre utilisateur" });
-    }
-    res.status(200).json(commande);
-  } catch (err) {
-    next(err);
+router.get("/commandes/:id", authClient, async (req, res) => {
+  const { id } = req.params;
+  const commande = await Commandeapi.findById(id).populate("panier.produitId");
+  if (!commande)
+    return res.status(404).json({ message: "Commande introuvable" });
+  if (commande.client.userId.toString() !== req.auth.userId) {
+    return res.status(403).json({ message: "Accès refusé" });
   }
+  res.status(200).json(commande);
 });
 
 // Soumettre un paiement semi-manuel (vérifie que la commande appartient au client)
-router.post("/commandes/:id/paiement-semi", authClient, async (req, res, next) => {
-  try {
-    const commande = await require("../models/paiementmodel").findById(req.params.id);
-    if (!commande) return res.status(404).json({ message: "Commande introuvable" });
-    if (commande.client.userId.toString() !== req.auth.userId) {
-      return res.status(403).json({ message: "Accès refusé : commande d'un autre utilisateur" });
+router.post(
+  "/commandes/:id/paiement-semi",
+  authClient,
+  async (req, res, next) => {
+    try {
+      const commande = await require("../models/paiementmodel").findById(
+        req.params.id
+      );
+      if (!commande)
+        return res.status(404).json({ message: "Commande introuvable" });
+      if (commande.client.userId.toString() !== req.auth.userId) {
+        return res
+          .status(403)
+          .json({ message: "Accès refusé : commande d'un autre utilisateur" });
+      }
+      // Passe au controller existant
+      await paiementSemi(req, res);
+    } catch (err) {
+      next(err);
     }
-    // Passe au controller existant
-    await paiementSemi(req, res);
-  } catch (err) {
-    next(err);
   }
-});
+);
 
 /* =========================
    ROUTES ADMIN (inchangées)

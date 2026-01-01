@@ -93,7 +93,7 @@ const PanierItemSchema = new mongoose.Schema(
   {
     produitId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Product",
+      ref: "Produits",
       required: true,
     },
     nom: { type: String, required: true }, // snapshot du nom

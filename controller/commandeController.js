@@ -1,4 +1,5 @@
 const Commandeapi = require("../models/paiementmodel");
+const Product = require("../models/produits");
 
 // Générer une référence unique pour chaque étape de paiement
 const generateReference = (commandeId, step) => {
@@ -10,19 +11,40 @@ const generateReference = (commandeId, step) => {
    ========================= */
 const creerCommande = async (req, res) => {
   try {
-    const { client, panier, total, modePaiement, servicePaiement } = req.body;
+    const { client, panier, modePaiement, servicePaiement } = req.body;
 
-    if (!client || !panier || !total || !servicePaiement) {
+    if (!client || !panier || !servicePaiement) {
       return res.status(400).json({ message: "Champs requis manquants" });
     }
 
+    // Créer snapshot du panier
+    const panierSnapshot = await Promise.all(
+      panier.map(async (item) => {
+        const product = await Product.findById(item.produitId);
+        if (!product) throw new Error(`Produit introuvable: ${item.produitId}`);
+
+        return {
+          produitId: product._id,
+          nom: product.title,
+          prix: product.price,
+          images: product.images,
+          quantite: item.quantite,
+          couleur: item.couleur,
+          taille: item.taille,
+        };
+      })
+    );
+
+    // Calcul du total depuis les produits pour éviter incohérences
+    const totalCalculated = panierSnapshot.reduce(
+      (acc, item) => acc + item.prix * item.quantite,
+      0
+    );
+
     const nouvelleCommande = new Commandeapi({
-      client: {
-        userId: req.auth.userId,
-        ...client,
-      },
-      panier,
-      total,
+      client: { userId: req.auth.userId, ...client },
+      panier: panierSnapshot,
+      total: totalCalculated,
       modePaiement,
       servicePaiement,
       paiements: [],
@@ -32,7 +54,7 @@ const creerCommande = async (req, res) => {
 
     // Créer les étapes de paiement
     if (modePaiement === "installments") {
-      const montantParEtape = total / 3;
+      const montantParEtape = totalCalculated / 3;
       for (let i = 1; i <= 3; i++) {
         nouvelleCommande.paiements.push({
           step: i,
@@ -45,7 +67,7 @@ const creerCommande = async (req, res) => {
     } else {
       nouvelleCommande.paiements.push({
         step: 1,
-        amountExpected: total,
+        amountExpected: totalCalculated,
         status: "UNPAID",
         reference: generateReference(nouvelleCommande._id, 1),
         validatedAt: null,
@@ -53,6 +75,7 @@ const creerCommande = async (req, res) => {
     }
 
     await nouvelleCommande.save();
+
     res.status(201).json({
       message: "Commande créée avec succès",
       commande: nouvelleCommande,

@@ -54,7 +54,11 @@ exports.sauvegarderProduits = async (req, res) => {
       userId: req.admin._id,
     });
 
-    res.status(201).json(produit.toJSON());
+    const produitAvecVirtuals = await Produits.findById(produit._id).lean({
+      virtuals: true,
+    });
+
+    res.status(201).json(produitAvecVirtuals);
   } catch (error) {
     console.error("❌ sauvegarderProduits:", error.message);
     res.status(500).json({ message: error.message });

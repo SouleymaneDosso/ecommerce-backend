@@ -92,33 +92,19 @@ const PaiementRecuSchema = new mongoose.Schema(
 const PanierItemSchema = new mongoose.Schema(
   {
     produitId: {
-      type: String, // ✅ changer ObjectId en String pour accepter "6952e5db2bfb1d6585abd404_noir_m"
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
       required: true,
     },
-
-    nom: {
-      type: String,
-      required: true,
-    },
-
-    prix: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
-
-    quantite: {
-      type: Number,
-      required: true,
-      min: 1,
-    },
-
+    nom: { type: String, required: true }, // snapshot du nom
+    prix: { type: Number, required: true }, // snapshot du prix
+    image: { type: String }, // snapshot image
+    quantite: { type: Number, required: true, min: 1 },
     couleur: String,
     taille: String,
   },
   { _id: false }
 );
-
 
 /* =========================
    COMMANDE
@@ -144,7 +130,7 @@ const CommandeSchema = new mongoose.Schema(
     panier: {
       type: [PanierItemSchema],
       required: true,
-      validate: v => v.length > 0,
+      validate: (v) => v.length > 0,
     },
 
     total: {

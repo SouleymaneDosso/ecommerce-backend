@@ -8,6 +8,7 @@ const {
   getCommandesAdmin,
   paiementSemi,
   confirmerPaiementAdmin,
+  rejeterPaiementAdmin,
 } = require("../controller/commandeController");
 
 const authClient = require("../authentification/authClient");
@@ -64,5 +65,7 @@ router.get("/admin/commandes", getCommandesAdmin);
 
 // Confirmer un paiement envoyé par le client
 router.put("/admin/commandes/:id/valider-paiement", confirmerPaiementAdmin);
+
+router.put("/admin/commandes/:id/rejeter-paiement", rejeterPaiementAdmin);
 
 module.exports = router;

@@ -228,6 +228,57 @@ const confirmerPaiementAdmin = async (req, res) => {
     res.status(500).json({ message: "Erreur validation admin" });
   }
 };
+const rejeterPaiementAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { paiementRecuId, adminComment } = req.body;
+
+    const commande = await Commandeapi.findById(id);
+    if (!commande)
+      return res.status(404).json({ message: "Commande introuvable" });
+
+    const paiementRecu = commande.paiementsRecus.id(paiementRecuId);
+    if (!paiementRecu)
+      return res.status(404).json({ message: "Paiement non trouvé" });
+
+    if (paiementRecu.status === "REJECTED") {
+      return res.status(400).json({ message: "Paiement déjà rejeté" });
+    }
+
+    // Mettre à jour le paiement comme rejeté
+    paiementRecu.status = "REJECTED";
+    paiementRecu.adminComment = adminComment || "";
+    paiementRecu.confirmedAt = null;
+
+    // Mettre à jour l'étape correspondante si besoin
+    const paiementStep = commande.paiements.find(
+      (p) => p.step === paiementRecu.step
+    );
+    if (paiementStep) {
+      paiementStep.status = "UNPAID"; // on remet l'étape comme non payée
+      paiementStep.validatedAt = null;
+    }
+
+    // Mettre à jour le statut global de la commande
+    if (commande.paiements.every((p) => p.status === "PAID")) {
+      commande.statusCommande = "PAID";
+    } else if (commande.paiements.some((p) => p.status === "PENDING")) {
+      commande.statusCommande = "PARTIALLY_PAID";
+    } else {
+      commande.statusCommande = "PENDING";
+    }
+
+    await commande.save();
+
+    res.status(200).json({ message: "Paiement rejeté", commande });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      message: "Erreur lors du rejet du paiement",
+      error: err.message,
+    });
+  }
+};
 
 module.exports = {
   creerCommande,
@@ -235,4 +286,5 @@ module.exports = {
   getCommandesAdmin,
   paiementSemi,
   confirmerPaiementAdmin,
+  rejeterPaiementAdmin,
 };

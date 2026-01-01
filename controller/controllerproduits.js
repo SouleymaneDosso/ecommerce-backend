@@ -181,13 +181,26 @@ exports.getProduits = async (req, res) => {
     const limit = Number(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    const produits = await Produits.find()
+    const search = req.query.search;
+    let filter = {};
+
+    if (search) {
+      filter = {
+        $or: [
+          { title: { $regex: search, $options: "i" } },
+          { description: { $regex: search, $options: "i" } },
+          { categorie: { $regex: search, $options: "i" } },
+        ],
+      };
+    }
+
+    const produits = await Produits.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
-      .lean({ virtuals: true }); // virtuals inclues
+      .lean({ virtuals: true });
 
-    res.status(200).json(produits); // pas de toJSON()
+    res.status(200).json(produits);
   } catch (err) {
     console.error("🔥 getProduits:", err.message);
     res.status(500).json({ message: "Erreur serveur" });

@@ -304,11 +304,14 @@ module.exports = { confirmerPaiementAdmin };
 
 ///rejeter paiement////
 const rejeterPaiementAdmin = async (req, res) => {
+  const session = await Commandeapi.startSession();
+  session.startTransaction();
+
   try {
     const { id } = req.params;
     const { paiementRecuId, adminComment } = req.body;
 
-    const commande = await Commandeapi.findById(id);
+    const commande = await Commandeapi.findById(id).session(session);
     if (!commande)
       return res.status(404).json({ message: "Commande introuvable" });
 
@@ -316,25 +319,56 @@ const rejeterPaiementAdmin = async (req, res) => {
     if (!paiementRecu)
       return res.status(404).json({ message: "Paiement non trouvé" });
 
-    if (paiementRecu.status === "REJECTED") {
+    if (paiementRecu.status === "REJECTED")
       return res.status(400).json({ message: "Paiement déjà rejeté" });
+
+    // ---------- Charger tous les produits du panier ----------
+    const produitIds = commande.panier.map((item) => item.produitId);
+    const produits = await Product.find({ _id: { $in: produitIds } }).session(
+      session
+    );
+    const produitsMap = {};
+    produits.forEach((p) => (produitsMap[p._id.toString()] = p));
+
+    // ---------- Remettre le stock si le paiement était confirmé ----------
+    if (paiementRecu.status === "CONFIRMED") {
+      for (const item of commande.panier) {
+        const produit = produitsMap[item.produitId.toString()];
+        if (!produit) continue;
+
+        const couleur = item.couleur.toLowerCase();
+        const taille = item.taille.toLowerCase();
+
+        let colorMap = produit.stockParVariation.get(couleur) || new Map();
+        let currentStock = colorMap.get(taille) || 0;
+
+        currentStock += item.quantite; // Remettre la quantité
+        colorMap.set(taille, currentStock);
+        produit.stockParVariation.set(couleur, colorMap);
+
+        produit.markModified("stockParVariation");
+
+        // Remettre le stock global
+        produit.stock += item.quantite;
+
+        await produit.save({ session });
+      }
     }
 
-    // Mettre à jour le paiement comme rejeté
+    // ---------- Mettre le paiement comme rejeté ----------
     paiementRecu.status = "REJECTED";
     paiementRecu.adminComment = adminComment || "";
     paiementRecu.confirmedAt = null;
 
-    // Mettre à jour l'étape correspondante si besoin
     const paiementStep = commande.paiements.find(
       (p) => p.step === paiementRecu.step
     );
     if (paiementStep) {
-      paiementStep.status = "UNPAID"; // on remet l'étape comme non payée
+      paiementStep.status = "UNPAID"; // l'étape redevient non payée
       paiementStep.validatedAt = null;
     }
 
-    // Mettre à jour le statut global de la commande
+    // ---------- Mettre à jour le statut global ----------
     if (commande.paiements.every((p) => p.status === "PAID")) {
       commande.statusCommande = "PAID";
     } else if (commande.paiements.some((p) => p.status === "PENDING")) {
@@ -343,17 +377,26 @@ const rejeterPaiementAdmin = async (req, res) => {
       commande.statusCommande = "PENDING";
     }
 
-    await commande.save();
+    await commande.save({ session });
+    await session.commitTransaction();
+    session.endSession();
 
-    res.status(200).json({ message: "Paiement rejeté", commande });
+    return res.status(200).json({
+      message: "Paiement rejeté et stock mis à jour si nécessaire",
+      commande,
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({
+    await session.abortTransaction();
+    session.endSession();
+    console.error("❌ rejeterPaiementAdmin:", err);
+    return res.status(500).json({
       message: "Erreur lors du rejet du paiement",
       error: err.message,
     });
   }
 };
+
+module.exports = { rejeterPaiementAdmin };
 
 module.exports = {
   creerCommande,

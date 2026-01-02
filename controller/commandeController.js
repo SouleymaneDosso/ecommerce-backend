@@ -184,6 +184,9 @@ const paiementSemi = async (req, res) => {
    CONFIRMER PAIEMENT (ADMIN)
    ========================= */
 
+const Commandeapi = require("../models/paiementmodel");
+const Product = require("../models/produits");
+
 const confirmerPaiementAdmin = async (req, res) => {
   const session = await Commandeapi.startSession();
   session.startTransaction();
@@ -200,35 +203,33 @@ const confirmerPaiementAdmin = async (req, res) => {
     if (!paiementRecu)
       return res.status(404).json({ message: "Paiement non trouvé" });
 
-    if (paiementRecu.status === "CONFIRMED") {
+    if (paiementRecu.status === "CONFIRMED")
       return res.status(400).json({ message: "Paiement déjà confirmé" });
-    }
+
+    // ---------- Charger tous les produits du panier d'un coup ----------
+    const produitIds = commande.panier.map((item) => item.produitId);
+    const produitsMap = {};
+    const produits = await Product.find({ _id: { $in: produitIds } }).session(
+      session
+    );
+    produits.forEach((p) => (produitsMap[p._id.toString()] = p));
 
     // ---------- Vérification du stock ----------
     for (const item of commande.panier) {
-      const produit = await Product.findById(item.produitId).session(session);
+      const produit = produitsMap[item.produitId.toString()];
       if (!produit) continue;
 
-      const couleurKey = item.couleur.toLowerCase().trim();
-      const tailleKey = item.taille.toLowerCase().trim();
+      const couleur = item.couleur.toLowerCase();
+      const taille = item.taille.toLowerCase();
 
-      let stockVariation = produit.stockParVariation?.[couleurKey]?.[tailleKey];
+      let stockVariation = produit.stockParVariation?.[couleur]?.[taille];
 
-      // Si variation non trouvée, utiliser quantité commandée comme fallback
       if (stockVariation == null) {
         console.warn(
-          `⚠️ Stock variation non trouvée pour ${item.nom} ${item.couleur} ${item.taille} - fallback à la quantité commandée`
+          `⚠️ Stock variation non trouvée pour ${item.nom} (${item.couleur}/${item.taille}) - fallback à 0`
         );
-        stockVariation = item.quantite;
+        stockVariation = 0;
       }
-
-      console.log("Vérif stock:", {
-        produit: item.nom,
-        color: item.couleur,
-        size: item.taille,
-        stockVariation,
-        quantity: item.quantite,
-      });
 
       if (stockVariation < item.quantite) {
         await session.abortTransaction();
@@ -244,7 +245,6 @@ const confirmerPaiementAdmin = async (req, res) => {
     paiementRecu.confirmedAt = new Date();
     paiementRecu.adminComment = adminComment || "";
 
-    // Mettre à jour l'étape correspondante
     const paiementStep = commande.paiements.find(
       (p) => p.step === paiementRecu.step
     );
@@ -255,28 +255,29 @@ const confirmerPaiementAdmin = async (req, res) => {
 
     // ---------- Décrémenter le stock ----------
     for (const item of commande.panier) {
-      const produit = await Product.findById(item.produitId).session(session);
+      const produit = produitsMap[item.produitId.toString()];
       if (!produit) continue;
 
-      const couleurKey = item.couleur.toLowerCase().trim();
-      const tailleKey = item.taille.toLowerCase().trim();
+      const couleur = item.couleur.toLowerCase();
+      const taille = item.taille.toLowerCase();
 
-      // Décrémenter variation exacte si elle existe
-      if (
-        produit.stockParVariation?.[couleurKey] &&
-        produit.stockParVariation[couleurKey][tailleKey] != null
-      ) {
-        produit.stockParVariation[couleurKey][tailleKey] -= item.quantite;
-        if (produit.stockParVariation[couleurKey][tailleKey] < 0)
-          produit.stockParVariation[couleurKey][tailleKey] = 0;
-      }
+      // Initialiser si absent
+      if (!produit.stockParVariation) produit.stockParVariation = {};
+      if (!produit.stockParVariation[couleur])
+        produit.stockParVariation[couleur] = {};
+      if (produit.stockParVariation[couleur][taille] == null)
+        produit.stockParVariation[couleur][taille] = 0;
 
-      // ---------- Stock global sécurisé ----------
-      produit.stock = Object.values(produit.stockParVariation || {})
-        .flatMap((sizes) =>
-          Object.values(sizes || {}).map((v) => (typeof v === "number" ? v : 0))
-        )
-        .reduce((a, b) => a + b, 0);
+      // Décrémenter
+      produit.stockParVariation[couleur][taille] -= item.quantite;
+      if (produit.stockParVariation[couleur][taille] < 0)
+        produit.stockParVariation[couleur][taille] = 0;
+
+      produit.markModified("stockParVariation");
+
+      // Stock global
+      produit.stock -= item.quantite;
+      if (produit.stock < 0) produit.stock = 0;
 
       await produit.save({ session });
     }
@@ -299,7 +300,7 @@ const confirmerPaiementAdmin = async (req, res) => {
   } catch (err) {
     await session.abortTransaction();
     session.endSession();
-    console.error("❌ confirmerPaiementAdmin:", err.message);
+    console.error("❌ confirmerPaiementAdmin:", err);
     return res.status(500).json({
       message: "Erreur lors de la confirmation du paiement",
       error: err.message,
@@ -308,6 +309,7 @@ const confirmerPaiementAdmin = async (req, res) => {
 };
 
 module.exports = { confirmerPaiementAdmin };
+
 ///rejeter paiement////
 const rejeterPaiementAdmin = async (req, res) => {
   try {

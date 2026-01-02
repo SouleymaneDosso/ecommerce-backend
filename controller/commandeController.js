@@ -183,6 +183,7 @@ const paiementSemi = async (req, res) => {
 /* =========================
    CONFIRMER PAIEMENT (ADMIN)
    ========================= */
+
 const confirmerPaiementAdmin = async (req, res) => {
   try {
     const { id } = req.params;
@@ -214,6 +215,30 @@ const confirmerPaiementAdmin = async (req, res) => {
       paiementStep.validatedAt = new Date();
     }
 
+    // -----------------------------
+    // DÉCRÉMENTATION DU STOCK PRODUIT
+    // -----------------------------
+    for (const item of commande.panier) {
+      const produit = await Product.findById(item.produitId);
+      if (!produit) continue;
+
+      // Décrémente le stock par variation couleur/taille
+      if (
+        produit.stockParVariation?.[item.couleur] &&
+        produit.stockParVariation[item.couleur][item.taille] != null
+      ) {
+        produit.stockParVariation[item.couleur][item.taille] -= item.quantite;
+        if (produit.stockParVariation[item.couleur][item.taille] < 0)
+          produit.stockParVariation[item.couleur][item.taille] = 0;
+      }
+
+      // Optionnel : décrémente le stock total si utilisé
+      produit.stock -= item.quantite;
+      if (produit.stock < 0) produit.stock = 0;
+
+      await produit.save();
+    }
+
     // Mettre à jour le statut global
     if (commande.paiements.every((p) => p.status === "PAID")) {
       commande.statusCommande = "PAID";
@@ -228,6 +253,7 @@ const confirmerPaiementAdmin = async (req, res) => {
     res.status(500).json({ message: "Erreur validation admin" });
   }
 };
+
 const rejeterPaiementAdmin = async (req, res) => {
   try {
     const { id } = req.params;

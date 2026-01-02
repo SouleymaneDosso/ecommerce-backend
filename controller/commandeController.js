@@ -135,9 +135,11 @@ const getCommandesAdmin = async (req, res) => {
               nom: produit?.title || item.nom, // snapshot si produit supprimé
               prix: produit?.price || item.prix,
               image:
-                produit?.images.find((img) => img.isMain)?.url ||
+                produit?.images?.find((img) => img.isMain)?.url ||
+                produit?.images?.[0]?.url ||
                 item.image ||
                 "",
+
               quantite: item.quantite,
               couleur: item.couleur,
               taille: item.taille,

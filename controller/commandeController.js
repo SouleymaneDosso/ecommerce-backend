@@ -183,6 +183,10 @@ const paiementSemi = async (req, res) => {
 /* =========================
    CONFIRMER PAIEMENT (ADMIN)
    ========================= */
+
+const Commandeapi = require("../models/paiementmodel");
+const Product = require("../models/produits");
+
 const confirmerPaiementAdmin = async (req, res) => {
   const session = await Commandeapi.startSession();
   session.startTransaction();
@@ -218,14 +222,11 @@ const confirmerPaiementAdmin = async (req, res) => {
       const couleur = item.couleur.toLowerCase();
       const taille = item.taille.toLowerCase();
 
-      // Initialiser si absent
-      if (!produit.stockParVariation) produit.stockParVariation = {};
-      if (!produit.stockParVariation[couleur])
-        produit.stockParVariation[couleur] = {};
-      if (produit.stockParVariation[couleur][taille] == null)
-        produit.stockParVariation[couleur][taille] = 0;
+      // Récupérer ou créer la Map pour la couleur
+      let colorMap = produit.stockParVariation.get(couleur) || new Map();
 
-      const stockVariation = produit.stockParVariation[couleur][taille];
+      // Stock actuel de la taille
+      let stockVariation = colorMap.get(taille) || 0;
 
       if (stockVariation < item.quantite) {
         await session.abortTransaction();
@@ -257,12 +258,18 @@ const confirmerPaiementAdmin = async (req, res) => {
       const couleur = item.couleur.toLowerCase();
       const taille = item.taille.toLowerCase();
 
-      // Décrémenter la variation
-      produit.stockParVariation[couleur][taille] -= item.quantite;
-      if (produit.stockParVariation[couleur][taille] < 0)
-        produit.stockParVariation[couleur][taille] = 0;
+      // Récupérer ou créer la Map pour la couleur
+      let colorMap = produit.stockParVariation.get(couleur) || new Map();
 
-      produit.markModified("stockParVariation"); // 🔑
+      // Décrémenter le stock
+      let currentStock = colorMap.get(taille) || 0;
+      currentStock -= item.quantite;
+      if (currentStock < 0) currentStock = 0;
+
+      colorMap.set(taille, currentStock); // Mettre à jour la taille
+      produit.stockParVariation.set(couleur, colorMap); // Mettre à jour la couleur entière
+
+      produit.markModified("stockParVariation"); // 🔑 Indique à Mongoose que la Map a changé
 
       // Décrémenter le stock global
       produit.stock -= item.quantite;

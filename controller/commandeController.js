@@ -193,22 +193,14 @@ const confirmerPaiementAdmin = async (req, res) => {
     const { paiementRecuId, adminComment } = req.body;
 
     const commande = await Commandeapi.findById(id).session(session);
-    if (!commande) {
-      await session.abortTransaction();
-      session.endSession();
+    if (!commande)
       return res.status(404).json({ message: "Commande introuvable" });
-    }
 
     const paiementRecu = commande.paiementsRecus.id(paiementRecuId);
-    if (!paiementRecu) {
-      await session.abortTransaction();
-      session.endSession();
+    if (!paiementRecu)
       return res.status(404).json({ message: "Paiement non trouvé" });
-    }
 
     if (paiementRecu.status === "CONFIRMED") {
-      await session.abortTransaction();
-      session.endSession();
       return res.status(400).json({ message: "Paiement déjà confirmé" });
     }
 
@@ -217,20 +209,15 @@ const confirmerPaiementAdmin = async (req, res) => {
       const produit = await Product.findById(item.produitId).session(session);
       if (!produit) continue;
 
-      const couleurKey = item.couleur.trim().toLowerCase();
-      const tailleKey = item.taille.trim().toLowerCase();
+      const couleurKey = item.couleur.toLowerCase().trim();
+      const tailleKey = item.taille.toLowerCase().trim();
 
-      let stockVariation =
-        produit.stockParVariation?.[couleurKey]?.[tailleKey];
+      let stockVariation = produit.stockParVariation?.[couleurKey]?.[tailleKey];
 
-      // Fallback si variation non trouvée
+      // Si variation non trouvée, utiliser quantité commandée comme fallback
       if (stockVariation == null) {
         console.warn(
-          "⚠️ Stock variation non trouvée pour",
-          item.nom,
-          item.couleur,
-          item.taille,
-          "- utilisation de la quantité commandée"
+          `⚠️ Stock variation non trouvée pour ${item.nom} ${item.couleur} ${item.taille} - fallback à la quantité commandée`
         );
         stockVariation = item.quantite;
       }
@@ -271,9 +258,10 @@ const confirmerPaiementAdmin = async (req, res) => {
       const produit = await Product.findById(item.produitId).session(session);
       if (!produit) continue;
 
-      const couleurKey = item.couleur.trim().toLowerCase();
-      const tailleKey = item.taille.trim().toLowerCase();
+      const couleurKey = item.couleur.toLowerCase().trim();
+      const tailleKey = item.taille.toLowerCase().trim();
 
+      // Décrémenter variation exacte si elle existe
       if (
         produit.stockParVariation?.[couleurKey] &&
         produit.stockParVariation[couleurKey][tailleKey] != null
@@ -283,9 +271,11 @@ const confirmerPaiementAdmin = async (req, res) => {
           produit.stockParVariation[couleurKey][tailleKey] = 0;
       }
 
-      // Recalculer le stock global depuis toutes les variations
+      // ---------- Stock global sécurisé ----------
       produit.stock = Object.values(produit.stockParVariation || {})
-        .flatMap((sizes) => Object.values(sizes))
+        .flatMap((sizes) =>
+          Object.values(sizes || {}).map((v) => (typeof v === "number" ? v : 0))
+        )
         .reduce((a, b) => a + b, 0);
 
       await produit.save({ session });
@@ -317,6 +307,7 @@ const confirmerPaiementAdmin = async (req, res) => {
   }
 };
 
+module.exports = { confirmerPaiementAdmin };
 ///rejeter paiement////
 const rejeterPaiementAdmin = async (req, res) => {
   try {

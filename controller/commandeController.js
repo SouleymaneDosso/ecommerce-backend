@@ -116,19 +116,47 @@ const getCommandesAdmin = async (req, res) => {
 
     const total = await Commandeapi.countDocuments();
 
-    // 🔹 Récupérer les commandes avec snapshot du panier
+    // 🔹 Récupérer les commandes
     const commandes = await Commandeapi.find()
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
-    // Ici on renvoie le panier tel qu'il est
-    // Le snapshot contient : produitId, nom, prix, images, quantite, couleur, taille
+    // 🔹 Préparer le panier complet avec infos produits actuelles et snapshot
+    const commandesWithProducts = await Promise.all(
+      commandes.map(async (commande) => {
+        const enrichedPanier = await Promise.all(
+          commande.panier.map(async (item) => {
+            // On va chercher le produit dans la collection Produits
+            const produit = await Product.findById(item.produitId);
+
+            return {
+              produitId: item.produitId,
+              nom: produit?.title || item.nom, // snapshot si produit supprimé
+              prix: produit?.price || item.prix,
+              image:
+                produit?.images.find((img) => img.isMain)?.url ||
+                item.image ||
+                "",
+              quantite: item.quantite,
+              couleur: item.couleur,
+              taille: item.taille,
+            };
+          })
+        );
+
+        return {
+          ...commande.toObject(),
+          panier: enrichedPanier,
+        };
+      })
+    );
+
     res.status(200).json({
       total,
       page,
       pages: Math.ceil(total / limit),
-      commandes,
+      commandes: commandesWithProducts,
     });
   } catch (err) {
     console.error("❌ getCommandesAdmin:", err);

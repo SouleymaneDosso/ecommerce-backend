@@ -183,6 +183,7 @@ const paiementSemi = async (req, res) => {
 /* =========================
    CONFIRMER PAIEMENT (ADMIN)
    ========================= */
+
 const confirmerPaiementAdmin = async (req, res) => {
   const session = await Commandeapi.startSession();
   session.startTransaction();
@@ -192,47 +193,38 @@ const confirmerPaiementAdmin = async (req, res) => {
     const { paiementRecuId, adminComment } = req.body;
 
     const commande = await Commandeapi.findById(id).session(session);
-    if (!commande) {
-      await session.abortTransaction();
-      session.endSession();
+    if (!commande)
       return res.status(404).json({ message: "Commande introuvable" });
-    }
 
     const paiementRecu = commande.paiementsRecus.id(paiementRecuId);
-    if (!paiementRecu) {
-      await session.abortTransaction();
-      session.endSession();
+    if (!paiementRecu)
       return res.status(404).json({ message: "Paiement non trouvé" });
-    }
 
     if (paiementRecu.status === "CONFIRMED") {
-      await session.abortTransaction();
-      session.endSession();
       return res.status(400).json({ message: "Paiement déjà confirmé" });
     }
 
-    // -----------------------------
-    // VÉRIFICATION DU STOCK
-    // -----------------------------
+    // Vérifier le stock avant modification
     for (const item of commande.panier) {
       const produit = await Product.findById(item.produitId).session(session);
       if (!produit) continue;
 
-      // Standardiser couleur et taille pour éviter les mismatch
+      // Standardiser couleur / taille
       const color = item.couleur?.toLowerCase().trim();
       const size = item.taille?.toLowerCase().trim();
 
-      const stockVariation =
-        produit.stockParVariation?.[color]?.[size] ?? produit.stock ?? 0;
+      const stockVariation = produit.stockParVariation?.[color]?.[size] ?? 0;
+
+      // DEBUG
+      console.log("Vérif stock:", {
+        produit: produit.title,
+        color,
+        size,
+        stockVariation,
+        quantity: item.quantite,
+      });
 
       if (stockVariation < item.quantite) {
-        console.log("DEBUG STOCK INSUFFISANT:", {
-          produit: produit.title,
-          color,
-          size,
-          stockVariation,
-          quantity: item.quantite,
-        });
         await session.abortTransaction();
         session.endSession();
         return res.status(400).json({
@@ -241,9 +233,7 @@ const confirmerPaiementAdmin = async (req, res) => {
       }
     }
 
-    // -----------------------------
-    // CONFIRMER LE PAIEMENT
-    // -----------------------------
+    // Confirmer le paiement
     paiementRecu.status = "CONFIRMED";
     paiementRecu.confirmedAt = new Date();
     paiementRecu.adminComment = adminComment || "";
@@ -257,9 +247,7 @@ const confirmerPaiementAdmin = async (req, res) => {
       paiementStep.validatedAt = new Date();
     }
 
-    // -----------------------------
-    // DÉCRÉMENTER LE STOCK
-    // -----------------------------
+    // Décrémenter le stock
     for (const item of commande.panier) {
       const produit = await Product.findById(item.produitId).session(session);
       if (!produit) continue;
@@ -267,23 +255,23 @@ const confirmerPaiementAdmin = async (req, res) => {
       const color = item.couleur?.toLowerCase().trim();
       const size = item.taille?.toLowerCase().trim();
 
-      // Décrémentation par variation
-      if (produit.stockParVariation?.[color]?.[size] != null) {
+      if (
+        produit.stockParVariation?.[color] &&
+        produit.stockParVariation[color][size] != null
+      ) {
         produit.stockParVariation[color][size] -= item.quantite;
         if (produit.stockParVariation[color][size] < 0)
           produit.stockParVariation[color][size] = 0;
       }
 
-      // Décrémentation stock total
+      // Toujours décrémenter stock total
       produit.stock -= item.quantite;
       if (produit.stock < 0) produit.stock = 0;
 
       await produit.save({ session });
     }
 
-    // -----------------------------
-    // MISE À JOUR DU STATUT DE LA COMMANDE
-    // -----------------------------
+    // Mettre à jour le statut global de la commande
     if (commande.paiements.every((p) => p.status === "PAID")) {
       commande.statusCommande = "PAID";
     } else {

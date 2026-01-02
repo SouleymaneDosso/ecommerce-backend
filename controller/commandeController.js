@@ -204,22 +204,33 @@ const confirmerPaiementAdmin = async (req, res) => {
       return res.status(400).json({ message: "Paiement déjà confirmé" });
     }
 
-    // Vérifier le stock avant modification
+    // ---------- Vérification du stock ----------
     for (const item of commande.panier) {
       const produit = await Product.findById(item.produitId).session(session);
       if (!produit) continue;
 
-      // Standardiser couleur / taille
-      const color = item.couleur?.toLowerCase().trim();
-      const size = item.taille?.toLowerCase().trim();
+      // Stock exact de la variation (couleur + taille)
+      let stockVariation =
+        produit.stockParVariation?.[item.couleur.toLowerCase()]?.[
+          item.taille.toLowerCase()
+        ];
 
-      const stockVariation = produit.stockParVariation?.[color]?.[size] ?? 0;
+      // Fallback si variation non trouvée
+      if (stockVariation == null) {
+        console.warn(
+          "⚠️ Stock variation non trouvée pour",
+          item.nom,
+          item.couleur,
+          item.taille,
+          "- utilisation de la quantité commandée"
+        );
+        stockVariation = item.quantite;
+      }
 
-      // DEBUG
       console.log("Vérif stock:", {
-        produit: produit.title,
-        color,
-        size,
+        produit: item.nom,
+        color: item.couleur,
+        size: item.taille,
         stockVariation,
         quantity: item.quantite,
       });
@@ -233,7 +244,7 @@ const confirmerPaiementAdmin = async (req, res) => {
       }
     }
 
-    // Confirmer le paiement
+    // ---------- Confirmer le paiement ----------
     paiementRecu.status = "CONFIRMED";
     paiementRecu.confirmedAt = new Date();
     paiementRecu.adminComment = adminComment || "";
@@ -247,31 +258,39 @@ const confirmerPaiementAdmin = async (req, res) => {
       paiementStep.validatedAt = new Date();
     }
 
-    // Décrémenter le stock
+    // ---------- Décrémenter le stock ----------
     for (const item of commande.panier) {
       const produit = await Product.findById(item.produitId).session(session);
       if (!produit) continue;
 
-      const color = item.couleur?.toLowerCase().trim();
-      const size = item.taille?.toLowerCase().trim();
-
+      // Variation exacte
       if (
-        produit.stockParVariation?.[color] &&
-        produit.stockParVariation[color][size] != null
+        produit.stockParVariation?.[item.couleur.toLowerCase()] &&
+        produit.stockParVariation[item.couleur.toLowerCase()][
+          item.taille.toLowerCase()
+        ] != null
       ) {
-        produit.stockParVariation[color][size] -= item.quantite;
-        if (produit.stockParVariation[color][size] < 0)
-          produit.stockParVariation[color][size] = 0;
+        produit.stockParVariation[item.couleur.toLowerCase()][
+          item.taille.toLowerCase()
+        ] -= item.quantite;
+        if (
+          produit.stockParVariation[item.couleur.toLowerCase()][
+            item.taille.toLowerCase()
+          ] < 0
+        )
+          produit.stockParVariation[item.couleur.toLowerCase()][
+            item.taille.toLowerCase()
+          ] = 0;
       }
 
-      // Toujours décrémenter stock total
+      // Stock global
       produit.stock -= item.quantite;
       if (produit.stock < 0) produit.stock = 0;
 
       await produit.save({ session });
     }
 
-    // Mettre à jour le statut global de la commande
+    // ---------- Mettre à jour le statut global ----------
     if (commande.paiements.every((p) => p.status === "PAID")) {
       commande.statusCommande = "PAID";
     } else {

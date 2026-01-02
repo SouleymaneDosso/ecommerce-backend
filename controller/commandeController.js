@@ -116,43 +116,28 @@ const getCommandesAdmin = async (req, res) => {
 
     const total = await Commandeapi.countDocuments();
 
-    // 🔹 Récupérer les commandes
     const commandes = await Commandeapi.find()
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
-    // 🔹 Préparer le panier complet avec infos produits actuelles et snapshot
-    const commandesWithProducts = await Promise.all(
-      commandes.map(async (commande) => {
-        const enrichedPanier = await Promise.all(
-          commande.panier.map(async (item) => {
-            // On va chercher le produit dans la collection Produits
-            const produit = await Product.findById(item.produitId);
+    // Ici, on utilise directement le snapshot
+    const commandesWithProducts = commandes.map((commande) => {
+      const enrichedPanier = commande.panier.map((item) => ({
+        produitId: item.produitId,
+        nom: item.nom,
+        prix: item.prix,
+        image: item.image || "", // Snapshot
+        quantite: item.quantite,
+        couleur: item.couleur,
+        taille: item.taille,
+      }));
 
-            return {
-              produitId: item.produitId,
-              nom: produit?.title || item.nom, // snapshot si produit supprimé
-              prix: produit?.price || item.prix,
-              image:
-                produit?.images?.find((img) => img.isMain)?.url ||
-                produit?.images?.[0]?.url ||
-                item.image ||
-                "",
-
-              quantite: item.quantite,
-              couleur: item.couleur,
-              taille: item.taille,
-            };
-          })
-        );
-
-        return {
-          ...commande.toObject(),
-          panier: enrichedPanier,
-        };
-      })
-    );
+      return {
+        ...commande.toObject(),
+        panier: enrichedPanier,
+      };
+    });
 
     res.status(200).json({
       total,

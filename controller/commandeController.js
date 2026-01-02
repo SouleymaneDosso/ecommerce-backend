@@ -202,12 +202,12 @@ const confirmerPaiementAdmin = async (req, res) => {
     if (paiementRecu.status === "CONFIRMED")
       return res.status(400).json({ message: "Paiement déjà confirmé" });
 
-    // ---------- Charger tous les produits du panier d'un coup ----------
+    // ---------- Charger tous les produits du panier ----------
     const produitIds = commande.panier.map((item) => item.produitId);
-    const produitsMap = {};
     const produits = await Product.find({ _id: { $in: produitIds } }).session(
       session
     );
+    const produitsMap = {};
     produits.forEach((p) => (produitsMap[p._id.toString()] = p));
 
     // ---------- Vérification du stock ----------
@@ -218,14 +218,14 @@ const confirmerPaiementAdmin = async (req, res) => {
       const couleur = item.couleur.toLowerCase();
       const taille = item.taille.toLowerCase();
 
-      let stockVariation = produit.stockParVariation?.[couleur]?.[taille];
+      // Initialiser si absent
+      if (!produit.stockParVariation) produit.stockParVariation = {};
+      if (!produit.stockParVariation[couleur])
+        produit.stockParVariation[couleur] = {};
+      if (produit.stockParVariation[couleur][taille] == null)
+        produit.stockParVariation[couleur][taille] = 0;
 
-      if (stockVariation == null) {
-        console.warn(
-          `⚠️ Stock variation non trouvée pour ${item.nom} (${item.couleur}/${item.taille}) - fallback à 0`
-        );
-        stockVariation = 0;
-      }
+      const stockVariation = produit.stockParVariation[couleur][taille];
 
       if (stockVariation < item.quantite) {
         await session.abortTransaction();
@@ -257,21 +257,14 @@ const confirmerPaiementAdmin = async (req, res) => {
       const couleur = item.couleur.toLowerCase();
       const taille = item.taille.toLowerCase();
 
-      // Initialiser si absent
-      if (!produit.stockParVariation) produit.stockParVariation = {};
-      if (!produit.stockParVariation[couleur])
-        produit.stockParVariation[couleur] = {};
-      if (produit.stockParVariation[couleur][taille] == null)
-        produit.stockParVariation[couleur][taille] = 0;
-
-      // Décrémenter
+      // Décrémenter la variation
       produit.stockParVariation[couleur][taille] -= item.quantite;
       if (produit.stockParVariation[couleur][taille] < 0)
         produit.stockParVariation[couleur][taille] = 0;
 
-      produit.markModified("stockParVariation");
+      produit.markModified("stockParVariation"); // 🔑
 
-      // Stock global
+      // Décrémenter le stock global
       produit.stock -= item.quantite;
       if (produit.stock < 0) produit.stock = 0;
 

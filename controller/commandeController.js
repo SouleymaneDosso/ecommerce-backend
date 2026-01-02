@@ -108,6 +108,9 @@ const getCommandeById = async (req, res) => {
 /* =========================
    GET COMMANDES ADMIN
    ========================= */
+/* =========================
+   GET COMMANDES ADMIN
+   ========================= */
 const getCommandesAdmin = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -115,19 +118,43 @@ const getCommandesAdmin = async (req, res) => {
     const skip = (page - 1) * limit;
 
     const total = await Commandeapi.countDocuments();
+
+    // 🔹 Récupérer les commandes avec populate pour le panier
     const commandes = await Commandeapi.find()
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .populate("panier.produitId"); // 🔑 populate pour infos produit
+
+    // 🔹 Enrichir le panier avec infos produit
+    const commandesWithProducts = commandes.map((c) => {
+      const panier = c.panier.map((item) => {
+        const produit = item.produitId; // résultat du populate
+        return {
+          produitId: produit?._id || item.produitId,
+          nom: produit?.title || item.nom,
+          prix: produit?.price || item.prix,
+          image: produit?.images.find((img) => img.isMain)?.url || "",
+          quantite: item.quantite,
+          couleur: item.couleur,
+          taille: item.taille,
+        };
+      });
+
+      return {
+        ...c.toObject(),
+        panier,
+      };
+    });
 
     res.status(200).json({
       total,
       page,
       pages: Math.ceil(total / limit),
-      commandes,
+      commandes: commandesWithProducts,
     });
   } catch (err) {
-    console.error(err);
+    console.error("❌ getCommandesAdmin:", err);
     res.status(500).json({ message: "Erreur serveur" });
   }
 };

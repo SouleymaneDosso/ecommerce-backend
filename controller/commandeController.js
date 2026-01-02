@@ -183,139 +183,78 @@ const paiementSemi = async (req, res) => {
 /* =========================
    CONFIRMER PAIEMENT (ADMIN)
    ========================= */
-
-const confirmerPaiementAdmin = async (req, res) => {
-  const session = await Commandeapi.startSession();
-  session.startTransaction();
-
+exports.confirmerCommande = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { paiementRecuId, adminComment } = req.body;
+    const { panier, userId, total, adresseLivraison } = req.body;
+    if (!panier || panier.length === 0)
+      return res.status(400).json({ message: "Panier vide" });
 
-    const commande = await Commandeapi.findById(id).session(session);
-    if (!commande)
-      return res.status(404).json({ message: "Commande introuvable" });
+    // Récupérer tous les produits concernés
+    const produitsIds = panier.map((item) => item.productId);
+    const produits = await Produits.find({ _id: { $in: produitsIds } });
 
-    const paiementRecu = commande.paiementsRecus.id(paiementRecuId);
-    if (!paiementRecu)
-      return res.status(404).json({ message: "Paiement non trouvé" });
+    // Vérifier stock avant de créer commande
+    for (const item of panier) {
+      const produit = produits.find((p) => p._id.toString() === item.productId);
+      if (!produit)
+        return res
+          .status(404)
+          .json({ message: `Produit ${item.nom} introuvable` });
 
-    if (paiementRecu.status === "CONFIRMED") {
-      return res.status(400).json({ message: "Paiement déjà confirmé" });
-    }
+      const couleurKey = item.couleur.trim().toLowerCase();
+      const tailleKey = item.taille.trim().toLowerCase();
 
-    // ---------- Vérification du stock ----------
-    for (const item of commande.panier) {
-      const produit = await Product.findById(item.produitId).session(session);
-      if (!produit) continue;
-
-      // Stock exact de la variation (couleur + taille)
-      let stockVariation =
-        produit.stockParVariation?.[item.couleur.toLowerCase()]?.[
-          item.taille.toLowerCase()
-        ];
-
-      // Fallback si variation non trouvée
-      if (stockVariation == null) {
-        console.warn(
-          "⚠️ Stock variation non trouvée pour",
-          item.nom,
-          item.couleur,
-          item.taille,
-          "- utilisation de la quantité commandée"
-        );
-        stockVariation = item.quantite;
-      }
+      let stockVariation = produit.stockParVariation?.[couleurKey]?.[tailleKey];
 
       console.log("Vérif stock:", {
-        produit: item.nom,
-        color: item.couleur,
-        size: item.taille,
+        produit: produit.title,
+        color: couleurKey,
+        size: tailleKey,
         stockVariation,
         quantity: item.quantite,
       });
 
-      if (stockVariation < item.quantite) {
-        await session.abortTransaction();
-        session.endSession();
+      if (stockVariation == null || stockVariation < item.quantite) {
         return res.status(400).json({
-          message: `Stock insuffisant pour ${item.nom} (${item.couleur}/${item.taille})`,
+          message: `Stock insuffisant pour ${produit.title} (${item.couleur} ${item.taille})`,
         });
       }
     }
 
-    // ---------- Confirmer le paiement ----------
-    paiementRecu.status = "CONFIRMED";
-    paiementRecu.confirmedAt = new Date();
-    paiementRecu.adminComment = adminComment || "";
+    // Décrémenter stock une fois validé
+    for (const item of panier) {
+      const produit = produits.find((p) => p._id.toString() === item.productId);
+      const couleurKey = item.couleur.trim().toLowerCase();
+      const tailleKey = item.taille.trim().toLowerCase();
 
-    // Mettre à jour l'étape correspondante
-    const paiementStep = commande.paiements.find(
-      (p) => p.step === paiementRecu.step
-    );
-    if (paiementStep) {
-      paiementStep.status = "PAID";
-      paiementStep.validatedAt = new Date();
+      produit.stockParVariation[couleurKey][tailleKey] -= item.quantite;
+      if (produit.stockParVariation[couleurKey][tailleKey] < 0)
+        produit.stockParVariation[couleurKey][tailleKey] = 0;
+
+      // Mettre à jour le stock total
+      produit.stock = Object.values(produit.stockParVariation)
+        .flatMap((sizes) => Object.values(sizes))
+        .reduce((a, b) => a + b, 0);
+
+      await produit.save();
     }
 
-    // ---------- Décrémenter le stock ----------
-    for (const item of commande.panier) {
-      const produit = await Product.findById(item.produitId).session(session);
-      if (!produit) continue;
-
-      // Variation exacte
-      if (
-        produit.stockParVariation?.[item.couleur.toLowerCase()] &&
-        produit.stockParVariation[item.couleur.toLowerCase()][
-          item.taille.toLowerCase()
-        ] != null
-      ) {
-        produit.stockParVariation[item.couleur.toLowerCase()][
-          item.taille.toLowerCase()
-        ] -= item.quantite;
-        if (
-          produit.stockParVariation[item.couleur.toLowerCase()][
-            item.taille.toLowerCase()
-          ] < 0
-        )
-          produit.stockParVariation[item.couleur.toLowerCase()][
-            item.taille.toLowerCase()
-          ] = 0;
-      }
-
-      // Stock global
-      produit.stock -= item.quantite;
-      if (produit.stock < 0) produit.stock = 0;
-
-      await produit.save({ session });
-    }
-
-    // ---------- Mettre à jour le statut global ----------
-    if (commande.paiements.every((p) => p.status === "PAID")) {
-      commande.statusCommande = "PAID";
-    } else {
-      commande.statusCommande = "PARTIALLY_PAID";
-    }
-
-    await commande.save({ session });
-    await session.commitTransaction();
-    session.endSession();
-
-    return res.status(200).json({
-      message: "Paiement confirmé et stock mis à jour",
-      commande,
+    // Créer la commande
+    const commande = await Commande.create({
+      userId,
+      produits: panier,
+      total,
+      adresseLivraison,
+      statut: "en cours",
+      createdAt: new Date(),
     });
+
+    res.status(201).json({ message: "Commande confirmée", commande });
   } catch (err) {
-    await session.abortTransaction();
-    session.endSession();
-    console.error("❌ confirmerPaiementAdmin:", err.message);
-    return res.status(500).json({
-      message: "Erreur lors de la confirmation du paiement",
-      error: err.message,
-    });
+    console.error("❌ confirmerCommande:", err.message);
+    res.status(500).json({ message: "Erreur serveur" });
   }
 };
-
 ///rejeter paiement////
 const rejeterPaiementAdmin = async (req, res) => {
   try {

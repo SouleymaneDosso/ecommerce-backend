@@ -183,78 +183,140 @@ const paiementSemi = async (req, res) => {
 /* =========================
    CONFIRMER PAIEMENT (ADMIN)
    ========================= */
-exports.confirmerCommande = async (req, res) => {
+
+const confirmerPaiementAdmin = async (req, res) => {
+  const session = await Commandeapi.startSession();
+  session.startTransaction();
+
   try {
-    const { panier, userId, total, adresseLivraison } = req.body;
-    if (!panier || panier.length === 0)
-      return res.status(400).json({ message: "Panier vide" });
+    const { id } = req.params;
+    const { paiementRecuId, adminComment } = req.body;
 
-    // Récupérer tous les produits concernés
-    const produitsIds = panier.map((item) => item.productId);
-    const produits = await Produits.find({ _id: { $in: produitsIds } });
+    const commande = await Commandeapi.findById(id).session(session);
+    if (!commande) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ message: "Commande introuvable" });
+    }
 
-    // Vérifier stock avant de créer commande
-    for (const item of panier) {
-      const produit = produits.find((p) => p._id.toString() === item.productId);
-      if (!produit)
-        return res
-          .status(404)
-          .json({ message: `Produit ${item.nom} introuvable` });
+    const paiementRecu = commande.paiementsRecus.id(paiementRecuId);
+    if (!paiementRecu) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ message: "Paiement non trouvé" });
+    }
+
+    if (paiementRecu.status === "CONFIRMED") {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: "Paiement déjà confirmé" });
+    }
+
+    // ---------- Vérification du stock ----------
+    for (const item of commande.panier) {
+      const produit = await Product.findById(item.produitId).session(session);
+      if (!produit) continue;
 
       const couleurKey = item.couleur.trim().toLowerCase();
       const tailleKey = item.taille.trim().toLowerCase();
 
-      let stockVariation = produit.stockParVariation?.[couleurKey]?.[tailleKey];
+      let stockVariation =
+        produit.stockParVariation?.[couleurKey]?.[tailleKey];
+
+      // Fallback si variation non trouvée
+      if (stockVariation == null) {
+        console.warn(
+          "⚠️ Stock variation non trouvée pour",
+          item.nom,
+          item.couleur,
+          item.taille,
+          "- utilisation de la quantité commandée"
+        );
+        stockVariation = item.quantite;
+      }
 
       console.log("Vérif stock:", {
-        produit: produit.title,
-        color: couleurKey,
-        size: tailleKey,
+        produit: item.nom,
+        color: item.couleur,
+        size: item.taille,
         stockVariation,
         quantity: item.quantite,
       });
 
-      if (stockVariation == null || stockVariation < item.quantite) {
+      if (stockVariation < item.quantite) {
+        await session.abortTransaction();
+        session.endSession();
         return res.status(400).json({
-          message: `Stock insuffisant pour ${produit.title} (${item.couleur} ${item.taille})`,
+          message: `Stock insuffisant pour ${item.nom} (${item.couleur}/${item.taille})`,
         });
       }
     }
 
-    // Décrémenter stock une fois validé
-    for (const item of panier) {
-      const produit = produits.find((p) => p._id.toString() === item.productId);
+    // ---------- Confirmer le paiement ----------
+    paiementRecu.status = "CONFIRMED";
+    paiementRecu.confirmedAt = new Date();
+    paiementRecu.adminComment = adminComment || "";
+
+    // Mettre à jour l'étape correspondante
+    const paiementStep = commande.paiements.find(
+      (p) => p.step === paiementRecu.step
+    );
+    if (paiementStep) {
+      paiementStep.status = "PAID";
+      paiementStep.validatedAt = new Date();
+    }
+
+    // ---------- Décrémenter le stock ----------
+    for (const item of commande.panier) {
+      const produit = await Product.findById(item.produitId).session(session);
+      if (!produit) continue;
+
       const couleurKey = item.couleur.trim().toLowerCase();
       const tailleKey = item.taille.trim().toLowerCase();
 
-      produit.stockParVariation[couleurKey][tailleKey] -= item.quantite;
-      if (produit.stockParVariation[couleurKey][tailleKey] < 0)
-        produit.stockParVariation[couleurKey][tailleKey] = 0;
+      if (
+        produit.stockParVariation?.[couleurKey] &&
+        produit.stockParVariation[couleurKey][tailleKey] != null
+      ) {
+        produit.stockParVariation[couleurKey][tailleKey] -= item.quantite;
+        if (produit.stockParVariation[couleurKey][tailleKey] < 0)
+          produit.stockParVariation[couleurKey][tailleKey] = 0;
+      }
 
-      // Mettre à jour le stock total
-      produit.stock = Object.values(produit.stockParVariation)
+      // Recalculer le stock global depuis toutes les variations
+      produit.stock = Object.values(produit.stockParVariation || {})
         .flatMap((sizes) => Object.values(sizes))
         .reduce((a, b) => a + b, 0);
 
-      await produit.save();
+      await produit.save({ session });
     }
 
-    // Créer la commande
-    const commande = await Commande.create({
-      userId,
-      produits: panier,
-      total,
-      adresseLivraison,
-      statut: "en cours",
-      createdAt: new Date(),
-    });
+    // ---------- Mettre à jour le statut global ----------
+    if (commande.paiements.every((p) => p.status === "PAID")) {
+      commande.statusCommande = "PAID";
+    } else {
+      commande.statusCommande = "PARTIALLY_PAID";
+    }
 
-    res.status(201).json({ message: "Commande confirmée", commande });
+    await commande.save({ session });
+    await session.commitTransaction();
+    session.endSession();
+
+    return res.status(200).json({
+      message: "Paiement confirmé et stock mis à jour",
+      commande,
+    });
   } catch (err) {
-    console.error("❌ confirmerCommande:", err.message);
-    res.status(500).json({ message: "Erreur serveur" });
+    await session.abortTransaction();
+    session.endSession();
+    console.error("❌ confirmerPaiementAdmin:", err.message);
+    return res.status(500).json({
+      message: "Erreur lors de la confirmation du paiement",
+      error: err.message,
+    });
   }
 };
+
 ///rejeter paiement////
 const rejeterPaiementAdmin = async (req, res) => {
   try {

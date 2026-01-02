@@ -183,10 +183,6 @@ const paiementSemi = async (req, res) => {
 /* =========================
    CONFIRMER PAIEMENT (ADMIN)
    ========================= */
-
-const Commandeapi = require("../models/paiementmodel");
-const Product = require("../models/produits");
-
 const confirmerPaiementAdmin = async (req, res) => {
   const session = await Commandeapi.startSession();
   session.startTransaction();

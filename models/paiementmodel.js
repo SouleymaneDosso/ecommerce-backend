@@ -180,5 +180,7 @@ const CommandeSchema = new mongoose.Schema(
    ========================= */
 CommandeSchema.index({ "client.userId": 1 });
 CommandeSchema.index({ statusCommande: 1 });
+CommandeSchema.index({ "paiementsRecus._id": 1 });
+
 
 module.exports = mongoose.model("Commandeapi", CommandeSchema);

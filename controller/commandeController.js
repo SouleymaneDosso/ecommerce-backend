@@ -184,21 +184,55 @@ const paiementSemi = async (req, res) => {
    CONFIRMER PAIEMENT (ADMIN)
    ========================= */
 
+const Commandeapi = require("../models/paiementmodel");
+const Product = require("../models/produits");
+
 const confirmerPaiementAdmin = async (req, res) => {
+  const session = await Commandeapi.startSession();
+  session.startTransaction();
+
   try {
     const { id } = req.params;
     const { paiementRecuId, adminComment } = req.body;
 
-    const commande = await Commandeapi.findById(id);
-    if (!commande)
+    // Récupérer la commande
+    const commande = await Commandeapi.findById(id).session(session);
+    if (!commande) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: "Commande introuvable" });
+    }
 
+    // Récupérer le paiement reçu
     const paiementRecu = commande.paiementsRecus.id(paiementRecuId);
-    if (!paiementRecu)
+    if (!paiementRecu) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: "Paiement non trouvé" });
+    }
 
     if (paiementRecu.status === "CONFIRMED") {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: "Paiement déjà confirmé" });
+    }
+
+    // Vérifier le stock pour tous les produits avant confirmation
+    for (const item of commande.panier) {
+      const produit = await Product.findById(item.produitId).session(session);
+      if (!produit) continue;
+
+      const stockVariation =
+        produit.stockParVariation?.[item.couleur]?.[item.taille] ??
+        produit.stock;
+
+      if (stockVariation < item.quantite) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({
+          message: `Stock insuffisant pour ${item.nom} (${item.couleur}/${item.taille})`,
+        });
+      }
     }
 
     // Confirmer le paiement
@@ -215,14 +249,11 @@ const confirmerPaiementAdmin = async (req, res) => {
       paiementStep.validatedAt = new Date();
     }
 
-    // -----------------------------
-    // DÉCRÉMENTATION DU STOCK PRODUIT
-    // -----------------------------
+    // Décrémenter le stock pour chaque produit
     for (const item of commande.panier) {
-      const produit = await Product.findById(item.produitId);
+      const produit = await Product.findById(item.produitId).session(session);
       if (!produit) continue;
 
-      // Décrémente le stock par variation couleur/taille
       if (
         produit.stockParVariation?.[item.couleur] &&
         produit.stockParVariation[item.couleur][item.taille] != null
@@ -232,27 +263,41 @@ const confirmerPaiementAdmin = async (req, res) => {
           produit.stockParVariation[item.couleur][item.taille] = 0;
       }
 
-      // Optionnel : décrémente le stock total si utilisé
       produit.stock -= item.quantite;
       if (produit.stock < 0) produit.stock = 0;
 
-      await produit.save();
+      await produit.save({ session });
     }
 
-    // Mettre à jour le statut global
+    // Mettre à jour le statut global de la commande
     if (commande.paiements.every((p) => p.status === "PAID")) {
       commande.statusCommande = "PAID";
     } else {
       commande.statusCommande = "PARTIALLY_PAID";
     }
 
-    await commande.save();
-    res.status(200).json({ message: "Paiement confirmé", commande });
+    await commande.save({ session });
+    await session.commitTransaction();
+    session.endSession();
+
+    return res.status(200).json({
+      message: "Paiement confirmé et stock mis à jour",
+      commande,
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Erreur validation admin" });
+    await session.abortTransaction();
+    session.endSession();
+    console.error("❌ confirmerPaiementAdmin:", err.message);
+    return res.status(500).json({
+      message: "Erreur lors de la confirmation du paiement",
+      error: err.message,
+    });
   }
 };
+
+module.exports = { confirmerPaiementAdmin };
+
+////rejeter paiement admin//////////////////
 
 const rejeterPaiementAdmin = async (req, res) => {
   try {

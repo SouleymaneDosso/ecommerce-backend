@@ -191,7 +191,6 @@ const confirmerPaiementAdmin = async (req, res) => {
     const { id } = req.params;
     const { paiementRecuId, adminComment } = req.body;
 
-    // Récupérer la commande
     const commande = await Commandeapi.findById(id).session(session);
     if (!commande) {
       await session.abortTransaction();
@@ -199,7 +198,6 @@ const confirmerPaiementAdmin = async (req, res) => {
       return res.status(404).json({ message: "Commande introuvable" });
     }
 
-    // Récupérer le paiement reçu
     const paiementRecu = commande.paiementsRecus.id(paiementRecuId);
     if (!paiementRecu) {
       await session.abortTransaction();
@@ -213,16 +211,28 @@ const confirmerPaiementAdmin = async (req, res) => {
       return res.status(400).json({ message: "Paiement déjà confirmé" });
     }
 
-    // Vérifier le stock pour tous les produits avant confirmation
+    // -----------------------------
+    // VÉRIFICATION DU STOCK
+    // -----------------------------
     for (const item of commande.panier) {
       const produit = await Product.findById(item.produitId).session(session);
       if (!produit) continue;
 
+      // Standardiser couleur et taille pour éviter les mismatch
+      const color = item.couleur?.toLowerCase().trim();
+      const size = item.taille?.toLowerCase().trim();
+
       const stockVariation =
-        produit.stockParVariation?.[item.couleur]?.[item.taille] ??
-        produit.stock;
+        produit.stockParVariation?.[color]?.[size] ?? produit.stock ?? 0;
 
       if (stockVariation < item.quantite) {
+        console.log("DEBUG STOCK INSUFFISANT:", {
+          produit: produit.title,
+          color,
+          size,
+          stockVariation,
+          quantity: item.quantite,
+        });
         await session.abortTransaction();
         session.endSession();
         return res.status(400).json({
@@ -231,7 +241,9 @@ const confirmerPaiementAdmin = async (req, res) => {
       }
     }
 
-    // Confirmer le paiement
+    // -----------------------------
+    // CONFIRMER LE PAIEMENT
+    // -----------------------------
     paiementRecu.status = "CONFIRMED";
     paiementRecu.confirmedAt = new Date();
     paiementRecu.adminComment = adminComment || "";
@@ -245,27 +257,33 @@ const confirmerPaiementAdmin = async (req, res) => {
       paiementStep.validatedAt = new Date();
     }
 
-    // Décrémenter le stock pour chaque produit
+    // -----------------------------
+    // DÉCRÉMENTER LE STOCK
+    // -----------------------------
     for (const item of commande.panier) {
       const produit = await Product.findById(item.produitId).session(session);
       if (!produit) continue;
 
-      if (
-        produit.stockParVariation?.[item.couleur] &&
-        produit.stockParVariation[item.couleur][item.taille] != null
-      ) {
-        produit.stockParVariation[item.couleur][item.taille] -= item.quantite;
-        if (produit.stockParVariation[item.couleur][item.taille] < 0)
-          produit.stockParVariation[item.couleur][item.taille] = 0;
+      const color = item.couleur?.toLowerCase().trim();
+      const size = item.taille?.toLowerCase().trim();
+
+      // Décrémentation par variation
+      if (produit.stockParVariation?.[color]?.[size] != null) {
+        produit.stockParVariation[color][size] -= item.quantite;
+        if (produit.stockParVariation[color][size] < 0)
+          produit.stockParVariation[color][size] = 0;
       }
 
+      // Décrémentation stock total
       produit.stock -= item.quantite;
       if (produit.stock < 0) produit.stock = 0;
 
       await produit.save({ session });
     }
 
-    // Mettre à jour le statut global de la commande
+    // -----------------------------
+    // MISE À JOUR DU STATUT DE LA COMMANDE
+    // -----------------------------
     if (commande.paiements.every((p) => p.status === "PAID")) {
       commande.statusCommande = "PAID";
     } else {
@@ -291,10 +309,7 @@ const confirmerPaiementAdmin = async (req, res) => {
   }
 };
 
-module.exports = { confirmerPaiementAdmin };
-
-////rejeter paiement admin//////////////////
-
+///rejeter paiement////
 const rejeterPaiementAdmin = async (req, res) => {
   try {
     const { id } = req.params;

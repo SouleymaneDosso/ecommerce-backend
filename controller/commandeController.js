@@ -120,36 +120,13 @@ const getCommandesAdmin = async (req, res) => {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
-      .lean(); // renvoie des objets JS
+      .lean(); // renvoie des objets JS simples
 
-    const commandesWithPanier = await Promise.all(
-      commandes.map(async (commande) => {
-        // Enrichir le panier avec image principale
-        const enrichedPanier = await Promise.all(
-          commande.panier.map(async (item) => {
-            // On récupère le produit réel juste pour l'image si nécessaire
-            const produit = await Product.findById(item.produitId).lean();
-            const mainImage =
-              produit?.images.find((img) => img.isMain)?.url || "";
-
-            return {
-              produitId: item.produitId,
-              nom: item.nom,
-              prix: item.prix,
-              image: item.image || mainImage,
-              quantite: item.quantite,
-              couleur: item.couleur,
-              taille: item.taille,
-            };
-          })
-        );
-
-        return {
-          ...commande,
-          panier: enrichedPanier,
-        };
-      })
-    );
+    // Assurer que le panier existe
+    const commandesWithPanier = commandes.map((cmd) => ({
+      ...cmd,
+      panier: cmd.panier || [],
+    }));
 
     res.status(200).json({
       total,

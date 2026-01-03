@@ -27,7 +27,7 @@ const creerCommande = async (req, res) => {
           produitId: product._id,
           nom: product.title,
           prix: product.price,
-          images: product.images,
+          image: product.images.find((img) => img.isMain)?.url || "", // image principale
           quantite: item.quantite,
           couleur: item.couleur,
           taille: item.taille,

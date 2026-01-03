@@ -10,11 +10,12 @@ const app = express();
 // ===============================
 const singnupdmin = require("./router/adminroute");
 const produitsAdmin = require("./router/adminRouteProduits");
-const compteClient = require("./router/compteRoutes")
+const compteClient = require("./router/compteRoutes");
 const commandeRoutes = require("./router/commandeRoutes");
 const produitsClient = require("./router/clientRouteProduits");
 const favorites = require("./router/favoritesRoute");
 const userRoutes = require("./router/userRoutes");
+
 // ===============================
 // DATABASE
 // ===============================
@@ -29,25 +30,28 @@ mongoose
 // MIDDLEWARES GLOBAUX
 // ===============================
 
-// CORS
+// CORS - autoriser ton frontend numa.luxe et Render
 const corsOptions = {
-  origin: ["http://localhost:5173", "https://ecommer-numa.vercel.app","https://numa.luxe"],
+  origin: [
+    "http://localhost:5173",
+    "https://ecommer-numa.vercel.app",
+    "https://numa.luxe"
+  ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 };
-
 app.use(cors(corsOptions));
 
-// Body parsers
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Body parsers - augmenter la limite pour gros panier ou images
+app.use(express.json({ limit: "10mb" })); // 10 MB
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // ===============================
 // ROUTES API
 // ===============================
 app.use("/api/user", userRoutes);
-app.use("/api/compte", compteClient )
+app.use("/api/compte", compteClient);
 app.use("/api", commandeRoutes);
 app.use("/api/admin", singnupdmin);
 app.use("/api/produits", produitsAdmin);
@@ -62,4 +66,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: err.message });
 });
 
+// ===============================
+// EXPORT
+// ===============================
 module.exports = app;

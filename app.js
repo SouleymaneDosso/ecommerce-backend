@@ -31,9 +31,25 @@ mongoose
 // ===============================
 
 // CORS - autoriser ton frontend numa.luxe et Render
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://ecommer-numa.vercel.app",
+  "https://numa.luxe",
+  "https://www.numa.luxe",
+];
+
 app.use(
   cors({
-    origin: true,
+    origin: function (origin, callback) {
+      // Autorise les requêtes serveur à serveur (pas de origin)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        return callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   })
 );

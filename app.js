@@ -31,17 +31,12 @@ mongoose
 // ===============================
 
 // CORS - autoriser ton frontend numa.luxe et Render
-const corsOptions = {
-  origin: [
-    "http://localhost:5173",
-    "https://ecommer-numa.vercel.app",
-    "https://numa.luxe"
-  ],
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-};
-app.use(cors(corsOptions));
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  })
+);
 
 // Body parsers - augmenter la limite pour gros panier ou images
 app.use(express.json({ limit: "10mb" })); // 10 MB

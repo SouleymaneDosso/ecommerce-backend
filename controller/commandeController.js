@@ -119,31 +119,15 @@ const getCommandesAdmin = async (req, res) => {
     const commandes = await Commandeapi.find()
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit);
-
-    // Ici, on utilise directement le snapshot
-    const commandesWithProducts = commandes.map((commande) => {
-      const enrichedPanier = commande.panier.map((item) => ({
-        produitId: item.produitId,
-        nom: item.nom,
-        prix: item.prix,
-        image: item.image || "", // Snapshot
-        quantite: item.quantite,
-        couleur: item.couleur,
-        taille: item.taille,
-      }));
-
-      return {
-        ...commande.toObject(),
-        panier: enrichedPanier,
-      };
-    });
+      .limit(limit)
+      .populate("client.userId", "username email")
+      .populate("panier.produitId"); // ✅ CLÉ DU SUCCÈS
 
     res.status(200).json({
       total,
       page,
       pages: Math.ceil(total / limit),
-      commandes: commandesWithProducts,
+      commandes,
     });
   } catch (err) {
     console.error("❌ getCommandesAdmin:", err);

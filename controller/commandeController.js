@@ -120,14 +120,42 @@ const getCommandesAdmin = async (req, res) => {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
-      .populate("client.userId", "username email")
-      .populate("panier.produitId"); // ✅ CLÉ DU SUCCÈS
+      .lean(); // renvoie des objets JS
+
+    const commandesWithPanier = await Promise.all(
+      commandes.map(async (commande) => {
+        // Enrichir le panier avec image principale
+        const enrichedPanier = await Promise.all(
+          commande.panier.map(async (item) => {
+            // On récupère le produit réel juste pour l'image si nécessaire
+            const produit = await Product.findById(item.produitId).lean();
+            const mainImage =
+              produit?.images.find((img) => img.isMain)?.url || "";
+
+            return {
+              produitId: item.produitId,
+              nom: item.nom,
+              prix: item.prix,
+              image: item.image || mainImage,
+              quantite: item.quantite,
+              couleur: item.couleur,
+              taille: item.taille,
+            };
+          })
+        );
+
+        return {
+          ...commande,
+          panier: enrichedPanier,
+        };
+      })
+    );
 
     res.status(200).json({
       total,
       page,
       pages: Math.ceil(total / limit),
-      commandes,
+      commandes: commandesWithPanier,
     });
   } catch (err) {
     console.error("❌ getCommandesAdmin:", err);

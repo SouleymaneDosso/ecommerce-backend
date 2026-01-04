@@ -10,7 +10,6 @@ const sendEmail = async (toEmail, templateId, params) => {
       to: [{ email: toEmail }],
       templateId,
       params,
-      sender: { name: "NUMA", email: "contact@numa.luxe" }, // ton email professionnel
     });
 
     await apiInstance.sendTransacEmail(sendSmtpEmail);

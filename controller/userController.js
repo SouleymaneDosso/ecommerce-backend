@@ -1,7 +1,7 @@
 const User = require("../models/User");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
-
+const { sendWelcomeEmail } = require("../controller/notificationController");
 // ===============================
 // INSCRIPTION
 // ===============================
@@ -20,18 +20,26 @@ exports.signup = async (req, res) => {
 
     const user = await User.create({ username, email, password: hashedPassword });
 
+    // ⚡ Envoi email de bienvenue
+    try {
+      await sendWelcomeEmail(user.email, user.username);
+      console.log("✅ Email de bienvenue envoyé");
+    } catch (err) {
+      console.error("❌ Erreur envoi email de bienvenue:", err);
+    }
+
     // Token JWT
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET_CLIENT, { expiresIn: "7d" });
 
-    // ⚠️ Envoi en cookie sécurisé pour mobile
+    // Cookie sécurisé
     res.cookie("token", token, {
       httpOnly: true,
-      secure: true,      // HTTPS obligatoire
-      sameSite: "none",  // Cross-domain mobile
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 jours
+      secure: true,
+      sameSite: "none",
+      maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
-    res.status(201).json({ message: "Utilisateur créé", userId: user._id, username: user.username , token: token });
+    res.status(201).json({ message: "Utilisateur créé", userId: user._id, username: user.username, token });
   } catch (error) {
     console.error("Signup Error:", error);
     res.status(500).json({ message: "Erreur serveur" });

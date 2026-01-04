@@ -1,5 +1,12 @@
 const Commandeapi = require("../models/paiementmodel");
 const Product = require("../models/produits");
+const User = require("../models/User")
+const {
+  sendNewOrderEmail,
+  sendPaymentSubmittedEmail,
+  sendPaymentConfirmedEmail,
+  sendPaymentRejectedEmail,
+} = require("../controller/notificationController");
 
 // Générer une référence unique pour chaque étape de paiement
 const generateReference = (commandeId, step) => {
@@ -75,6 +82,20 @@ const creerCommande = async (req, res) => {
     }
 
     await nouvelleCommande.save();
+
+    const user = await User.findById(req.auth.userId);
+    const clientEmail = user.email;
+
+    try {
+      await sendNewOrderEmail(
+        clientEmail,
+        nouvelleCommande._id,
+        nouvelleCommande.total
+      );
+      console.log("✅ Email nouvelle commande envoyé");
+    } catch (err) {
+      console.error("❌ Erreur envoi email nouvelle commande:", err);
+    }
 
     res.status(201).json({
       message: "Commande créée avec succès",
@@ -177,6 +198,17 @@ const paiementSemi = async (req, res) => {
     if (paiementStep.status === "UNPAID") paiementStep.status = "PENDING";
 
     await commande.save();
+    try {
+      await sendPaymentSubmittedEmail(
+        commande.client.email,
+        step,
+        montantEnvoye,
+        commande._id
+      );
+      console.log("✅ Email paiement soumis envoyé");
+    } catch (err) {
+      console.error("❌ Erreur envoi email paiement soumis:", err);
+    }
 
     res.status(200).json({
       message: "Paiement soumis, en attente de validation admin",
@@ -290,6 +322,18 @@ const confirmerPaiementAdmin = async (req, res) => {
     }
 
     await commande.save({ session });
+    try {
+      await sendPaymentConfirmedEmail(
+        commande.client.email,
+        paiementRecu.step,
+        paiementRecu.montantEnvoye,
+        commande._id
+      );
+      console.log("✅ Email paiement confirmé envoyé");
+    } catch (err) {
+      console.error("❌ Erreur envoi email paiement confirmé:", err);
+    }
+
     await session.commitTransaction();
     session.endSession();
 
@@ -307,8 +351,6 @@ const confirmerPaiementAdmin = async (req, res) => {
     });
   }
 };
-
-module.exports = { confirmerPaiementAdmin };
 
 ///rejeter paiement////
 const rejeterPaiementAdmin = async (req, res) => {
@@ -386,6 +428,19 @@ const rejeterPaiementAdmin = async (req, res) => {
     }
 
     await commande.save({ session });
+    try {
+      await sendPaymentRejectedEmail(
+        commande.client.email,
+        paiementRecu.step,
+        paiementRecu.montantEnvoye,
+        commande._id,
+        paiementRecu.adminComment
+      );
+      console.log("✅ Email paiement rejeté envoyé");
+    } catch (err) {
+      console.error("❌ Erreur envoi email paiement rejeté:", err);
+    }
+
     await session.commitTransaction();
     session.endSession();
 
@@ -403,8 +458,6 @@ const rejeterPaiementAdmin = async (req, res) => {
     });
   }
 };
-
-module.exports = { rejeterPaiementAdmin };
 
 module.exports = {
   creerCommande,

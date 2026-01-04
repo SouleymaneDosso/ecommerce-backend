@@ -8,14 +8,21 @@ const sendEmail = async (toEmail, templateId, params) => {
 
     const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail({
       to: [{ email: toEmail }],
-      templateId,
-      params,
+      templateId: templateId,
+      params: params,
+      sender: {
+        name: "NUMA",
+        email: "contact@numa.luxe",
+      },
     });
 
     await apiInstance.sendTransacEmail(sendSmtpEmail);
-    console.log(`Email envoyé à ${toEmail} (template ${templateId})`);
+    console.log(`✅ Email envoyé (${templateId}) à ${toEmail}`);
   } catch (err) {
-    console.error("Erreur envoi email Brevo:", err);
+    console.error(
+      "❌ Erreur envoi email Brevo:",
+      err?.response?.body || err.message
+    );
   }
 };
 
@@ -40,7 +47,13 @@ const sendPaymentConfirmedEmail = async (email, step, montant, commandeId) => {
 };
 
 // 5️⃣ Paiement rejeté par admin
-const sendPaymentRejectedEmail = async (email, step, montant, commandeId, reason) => {
+const sendPaymentRejectedEmail = async (
+  email,
+  step,
+  montant,
+  commandeId,
+  reason
+) => {
   await sendEmail(email, 6, { step, montant, commandeId, reason });
 };
 

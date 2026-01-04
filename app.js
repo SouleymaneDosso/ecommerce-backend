@@ -15,7 +15,7 @@ const commandeRoutes = require("./router/commandeRoutes");
 const produitsClient = require("./router/clientRouteProduits");
 const favorites = require("./router/favoritesRoute");
 const userRoutes = require("./router/userRoutes");
-
+const resetPassword = require("./router/authRoutes")
 // ===============================
 // DATABASE
 // ===============================
@@ -63,6 +63,7 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 // ===============================
 app.use("/api/user", userRoutes);
 app.use("/api/compte", compteClient);
+app.use("/api/auth", resetPassword );
 app.use("/api", commandeRoutes);
 app.use("/api/admin", singnupdmin);
 app.use("/api/produits", produitsAdmin);

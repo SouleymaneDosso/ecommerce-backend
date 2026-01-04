@@ -1,6 +1,6 @@
 const Commandeapi = require("../models/paiementmodel");
 const Product = require("../models/produits");
-const User = require("../models/User")
+const User = require("../models/User");
 const {
   sendNewOrderEmail,
   sendPaymentSubmittedEmail,
@@ -198,16 +198,19 @@ const paiementSemi = async (req, res) => {
     if (paiementStep.status === "UNPAID") paiementStep.status = "PENDING";
 
     await commande.save();
-    try {
+    const clientUser = await User.findById(commande.client.userId);
+    const clientEmail = clientUser?.email;
+
+    if (clientEmail) {
       await sendPaymentSubmittedEmail(
-        commande.client.email,
+        clientEmail,
         step,
         montantEnvoye,
         commande._id
       );
       console.log("✅ Email paiement soumis envoyé");
-    } catch (err) {
-      console.error("❌ Erreur envoi email paiement soumis:", err);
+    } else {
+      console.error("❌ Impossible d'envoyer l'email: email client manquant");
     }
 
     res.status(200).json({
@@ -322,16 +325,19 @@ const confirmerPaiementAdmin = async (req, res) => {
     }
 
     await commande.save({ session });
-    try {
+    const clientUser = await User.findById(commande.client.userId);
+    const clientEmail = clientUser?.email;
+
+    if (clientEmail) {
       await sendPaymentConfirmedEmail(
-        commande.client.email,
+        clientEmail,
         paiementRecu.step,
         paiementRecu.montantEnvoye,
         commande._id
       );
       console.log("✅ Email paiement confirmé envoyé");
-    } catch (err) {
-      console.error("❌ Erreur envoi email paiement confirmé:", err);
+    } else {
+      console.error("❌ Impossible d'envoyer l'email: email client manquant");
     }
 
     await session.commitTransaction();
@@ -428,17 +434,20 @@ const rejeterPaiementAdmin = async (req, res) => {
     }
 
     await commande.save({ session });
-    try {
+    const clientUser = await User.findById(commande.client.userId);
+    const clientEmail = clientUser?.email;
+
+    if (clientEmail) {
       await sendPaymentRejectedEmail(
-        commande.client.email,
+        clientEmail,
         paiementRecu.step,
         paiementRecu.montantEnvoye,
         commande._id,
         paiementRecu.adminComment
       );
       console.log("✅ Email paiement rejeté envoyé");
-    } catch (err) {
-      console.error("❌ Erreur envoi email paiement rejeté:", err);
+    } else {
+      console.error("❌ Impossible d'envoyer l'email: email client manquant");
     }
 
     await session.commitTransaction();

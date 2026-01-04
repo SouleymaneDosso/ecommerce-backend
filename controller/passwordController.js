@@ -4,13 +4,13 @@ const SibApiV3Sdk = require("sib-api-v3-sdk");
 
 /* =========================
    CONFIG BREVO
-   ========================= */
+========================= */
 const client = SibApiV3Sdk.ApiClient.instance;
 client.authentications["api-key"].apiKey = process.env.BREVO_API_KEY;
 
 /* =========================
    DEMANDE RESET PASSWORD
-   ========================= */
+========================= */
 exports.requestPasswordReset = async (req, res) => {
   console.log("🚀 Requête reçue pour forgot-password :", req.body);
   const { email } = req.body;
@@ -22,7 +22,7 @@ exports.requestPasswordReset = async (req, res) => {
   try {
     const user = await User.findOne({ email });
 
-    // Toujours renvoyer le même message pour la sécurité
+    // 🔒 Sécurité : réponse identique
     if (!user) {
       return res.status(200).json({
         message:
@@ -30,65 +30,59 @@ exports.requestPasswordReset = async (req, res) => {
       });
     }
 
-    // Génération token
+    // 🔑 Génération token
     const resetToken = crypto.randomBytes(32).toString("hex");
 
-    // Hash du token pour stockage DB
     const hashedToken = crypto
       .createHash("sha256")
       .update(resetToken)
       .digest("hex");
 
     user.resetPasswordToken = hashedToken;
-    user.resetPasswordExpire = Date.now() + 60 * 60 * 1000; // 1 heure
+    user.resetPasswordExpire = Date.now() + 60 * 60 * 1000; // 1h
     await user.save();
 
     const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
 
-    // Préparer email Brevo
+    /* =========================
+       EMAIL VIA TEMPLATE BREVO
+    ========================= */
     const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
-    const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
 
-    sendSmtpEmail.to = [{ email: user.email }];
-    sendSmtpEmail.sender = {
-      email: "no-reply@numa.com",
-      name: "NUMA",
+    const sendSmtpEmail = {
+      to: [{ email: user.email }],
+      sender: {
+        email: "contact@numa.luxe",
+        name: "NUMA",
+      },
+      templateId: 8, // 👈 ID DU TEMPLATE BREVO
+      params: {
+        username: user.username,
+        resetUrl: resetUrl,
+      },
     };
-    sendSmtpEmail.subject = "Réinitialisation de votre mot de passe";
-    sendSmtpEmail.htmlContent = `
-      <p>Bonjour <strong>${user.username}</strong>,</p>
-      <p>Vous avez demandé la réinitialisation de votre mot de passe.</p>
-      <p>
-        👉 <a href="${resetUrl}">Cliquez ici pour réinitialiser votre mot de passe</a>
-      </p>
-      <p>Ce lien est valable <strong>1 heure</strong>.</p>
-      <p>Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.</p>
-      <br/>
-      <p>— L'équipe NUMA</p>
-    `;
 
     try {
       await apiInstance.sendTransacEmail(sendSmtpEmail);
-      console.log("✅ Email envoyé à", user.email);
+      console.log("✅ Email reset envoyé via Brevo à", user.email);
     } catch (err) {
-      console.error("❌ Erreur Brevo (email non envoyé) :", err.message || err);
-      // On ne renvoie pas d'erreur au frontend
+      console.error("❌ Erreur Brevo :", err?.response?.body || err);
+      // ⚠️ on ne bloque jamais le flow
     }
 
-    // Toujours renvoyer un JSON cohérent
-    res.status(200).json({
+    return res.status(200).json({
       message:
         "Si un compte existe avec cet email, un message de réinitialisation a été envoyé",
     });
   } catch (err) {
     console.error("❌ requestPasswordReset:", err);
-    res.status(500).json({ message: "Erreur serveur" });
+    return res.status(500).json({ message: "Erreur serveur" });
   }
 };
 
 /* =========================
    RESET PASSWORD
-   ========================= */
+========================= */
 exports.resetPassword = async (req, res) => {
   const { token, password } = req.body;
 
@@ -99,7 +93,6 @@ exports.resetPassword = async (req, res) => {
   }
 
   try {
-    // Hash du token reçu
     const hashedToken = crypto
       .createHash("sha256")
       .update(token)
@@ -116,18 +109,17 @@ exports.resetPassword = async (req, res) => {
         .json({ message: "Token invalide ou expiré" });
     }
 
-    // Le hash du password est fait automatiquement dans le UserSchema (pre save)
-    user.password = password;
+    user.password = password; // hash auto via pre-save
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
 
     await user.save();
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Mot de passe réinitialisé avec succès",
     });
   } catch (err) {
     console.error("❌ resetPassword:", err);
-    res.status(500).json({ message: "Erreur serveur" });
+    return res.status(500).json({ message: "Erreur serveur" });
   }
 };

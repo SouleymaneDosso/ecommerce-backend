@@ -12,6 +12,7 @@ client.authentications["api-key"].apiKey = process.env.BREVO_API_KEY;
    DEMANDE RESET PASSWORD
    ========================= */
 exports.requestPasswordReset = async (req, res) => {
+  console.log("🚀 Requête reçue pour forgot-password :", req.body);
   const { email } = req.body;
 
   if (!email) {
@@ -21,7 +22,7 @@ exports.requestPasswordReset = async (req, res) => {
   try {
     const user = await User.findOne({ email });
 
-    // ⚠️ Sécurité : toujours la même réponse
+    // Toujours renvoyer le même message pour la sécurité
     if (!user) {
       return res.status(200).json({
         message:
@@ -44,7 +45,7 @@ exports.requestPasswordReset = async (req, res) => {
 
     const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
 
-    // Email Brevo
+    // Préparer email Brevo
     const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
     const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
 
@@ -66,8 +67,15 @@ exports.requestPasswordReset = async (req, res) => {
       <p>— L'équipe NUMA</p>
     `;
 
-    await apiInstance.sendTransacEmail(sendSmtpEmail);
+    try {
+      await apiInstance.sendTransacEmail(sendSmtpEmail);
+      console.log("✅ Email envoyé à", user.email);
+    } catch (err) {
+      console.error("❌ Erreur Brevo (email non envoyé) :", err.message || err);
+      // On ne renvoie pas d'erreur au frontend
+    }
 
+    // Toujours renvoyer un JSON cohérent
     res.status(200).json({
       message:
         "Si un compte existe avec cet email, un message de réinitialisation a été envoyé",
@@ -108,7 +116,7 @@ exports.resetPassword = async (req, res) => {
         .json({ message: "Token invalide ou expiré" });
     }
 
-    // ⚠️ Le hash du password doit être fait dans le UserSchema (pre save)
+    // Le hash du password est fait automatiquement dans le UserSchema (pre save)
     user.password = password;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;

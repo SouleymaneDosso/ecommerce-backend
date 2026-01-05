@@ -1,4 +1,3 @@
-const fetch = require("node-fetch");
 require("dotenv").config();
 
 exports.addNewsletter = async (req, res) => {
@@ -12,7 +11,7 @@ exports.addNewsletter = async (req, res) => {
     if (!marketingConsent) {
       return res
         .status(403)
-        .json({ message: "Consentement marketing requis" });
+        .json({ message: "Vous devez accepter de recevoir des emails marketing." });
     }
 
     // Appel à l'API Brevo
@@ -33,6 +32,7 @@ exports.addNewsletter = async (req, res) => {
     const data = await response.json();
 
     if (!response.ok) {
+      console.error("Erreur Brevo:", data);
       return res.status(response.status).json({
         message: data.message || "Erreur Brevo",
         data
@@ -42,6 +42,6 @@ exports.addNewsletter = async (req, res) => {
     res.status(200).json({ message: "Email ajouté à la newsletter ✅", data });
   } catch (error) {
     console.error("Erreur addNewsletter:", error);
-    res.status(500).json({ message: "Erreur serveur" });
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
   }
 };

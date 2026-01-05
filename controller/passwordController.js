@@ -42,7 +42,7 @@ exports.requestPasswordReset = async (req, res) => {
     user.resetPasswordExpire = Date.now() + 60 * 60 * 1000; // 1h
     await user.save();
 
-    const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
+    const resetUrl = `https://numa.luxe/reset-password/${resetToken}`;
 
     /* =========================
        EMAIL VIA TEMPLATE BREVO

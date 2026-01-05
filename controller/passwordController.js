@@ -41,8 +41,10 @@ exports.requestPasswordReset = async (req, res) => {
     user.resetPasswordToken = hashedToken;
     user.resetPasswordExpire = Date.now() + 60 * 60 * 1000; // 1h
     await user.save();
+    console.log("CLIENT_URL:", process.env.CLIENT_URL);
 
-    const resetUrl = `https://numa.luxe/reset-password/${resetToken}`;
+    const resetUrl = `${process.env.CLIENT_URL || "https://numa.luxe"}/reset-password/${resetToken}`;
+    console.log("Reset URL envoyé :", resetUrl);
 
     /* =========================
        EMAIL VIA TEMPLATE BREVO
@@ -87,16 +89,11 @@ exports.resetPassword = async (req, res) => {
   const { token, password } = req.body;
 
   if (!token || !password) {
-    return res
-      .status(400)
-      .json({ message: "Token et mot de passe requis" });
+    return res.status(400).json({ message: "Token et mot de passe requis" });
   }
 
   try {
-    const hashedToken = crypto
-      .createHash("sha256")
-      .update(token)
-      .digest("hex");
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
     const user = await User.findOne({
       resetPasswordToken: hashedToken,
@@ -104,9 +101,7 @@ exports.resetPassword = async (req, res) => {
     });
 
     if (!user) {
-      return res
-        .status(400)
-        .json({ message: "Token invalide ou expiré" });
+      return res.status(400).json({ message: "Token invalide ou expiré" });
     }
 
     user.password = password; // hash auto via pre-save

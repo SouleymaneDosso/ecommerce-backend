@@ -16,6 +16,7 @@ const produitsClient = require("./router/clientRouteProduits");
 const favorites = require("./router/favoritesRoute");
 const userRoutes = require("./router/userRoutes");
 const resetPassword = require("./router/authRoutes")
+const  newsletterRoute = require("./router/newsletter")
 // ===============================
 // DATABASE
 // ===============================
@@ -69,6 +70,7 @@ app.use("/api/admin", singnupdmin);
 app.use("/api/produits", produitsAdmin);
 app.use("/api/produits", produitsClient);
 app.use("/api/favorites", favorites);
+app.use("/api/newsletter", newsletterRoute);
 
 // ===============================
 // GESTION ERREURS

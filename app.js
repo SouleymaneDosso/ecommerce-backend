@@ -2,7 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-
+const cookieParser = require("cookie-parser");
 const app = express();
 
 // ===============================
@@ -17,6 +17,7 @@ const favorites = require("./router/favoritesRoute");
 const userRoutes = require("./router/userRoutes");
 const resetPassword = require("./router/authRoutes")
 const  newsletterRoute = require("./router/newsletter")
+const cookieRoutes = require("./router/cookieRoutes");
 // ===============================
 // DATABASE
 // ===============================
@@ -58,7 +59,7 @@ app.use(
 // Body parsers - augmenter la limite pour gros panier ou images
 app.use(express.json({ limit: "10mb" })); // 10 MB
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-
+app.use(cookieParser());
 // ===============================
 // ROUTES API
 // ===============================
@@ -71,6 +72,7 @@ app.use("/api/produits", produitsAdmin);
 app.use("/api/produits", produitsClient);
 app.use("/api/favorites", favorites);
 app.use("/api/newsletter", newsletterRoute);
+app.use("/api/cookies", cookieRoutes);
 
 // ===============================
 // GESTION ERREURS

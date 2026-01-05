@@ -4,38 +4,41 @@ exports.addNewsletter = async (req, res) => {
   try {
     const { email, name, marketingConsent } = req.body;
 
-    // Vérifier email
     if (!email) return res.status(400).json({ message: "Email requis" });
-
-    // Vérifier consentement marketing
     if (!marketingConsent) {
       return res
         .status(403)
         .json({ message: "Vous devez accepter de recevoir des emails marketing." });
     }
 
-    // Appel à l'API Brevo
     const response = await fetch("https://api.brevo.com/v3/contacts", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "api-key": process.env.BREVO_API_KEY
+        "api-key": process.env.BREVO_API_KEY,
       },
       body: JSON.stringify({
         email,
         attributes: { FIRSTNAME: name || "" },
-        listIds: [3], // ID de ta liste Brevo
-        updateEnabled: true
-      })
+        listIds: [3],
+        updateEnabled: true,
+      }),
     });
 
-    const data = await response.json();
+    // Vérifier si le corps est vide
+    const text = await response.text();
+    let data = {};
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch (err) {
+      console.warn("Impossible de parser JSON Brevo :", text);
+    }
 
     if (!response.ok) {
       console.error("Erreur Brevo:", data);
       return res.status(response.status).json({
         message: data.message || "Erreur Brevo",
-        data
+        data,
       });
     }
 
@@ -45,3 +48,4 @@ exports.addNewsletter = async (req, res) => {
     res.status(500).json({ message: "Erreur serveur", error: error.message });
   }
 };
+

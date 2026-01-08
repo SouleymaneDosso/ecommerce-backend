@@ -12,7 +12,7 @@ const upload = require("../middleware/multer-config");
 router.post(
   "/",
   authAdmin,
-  upload.array("images", 6),
+  upload.array("images"),
   mesProduits.sauvegarderProduits
 );
 
@@ -20,7 +20,7 @@ router.post(
 router.put(
   "/:id",
   authAdmin,
-  upload.array("images", 6),
+  upload.array("images"),
   mesProduits.updateProduit
 );
 

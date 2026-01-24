@@ -83,11 +83,11 @@ exports.updateProduit = async (req, res) => {
       await Promise.all(
         produit.images
           .filter((img) => idsToDelete.includes(img.publicId))
-          .map((img) => cloudinary.uploader.destroy(img.publicId))
+          .map((img) => cloudinary.uploader.destroy(img.publicId)),
       );
 
       produit.images = produit.images.filter(
-        (img) => !idsToDelete.includes(img.publicId)
+        (img) => !idsToDelete.includes(img.publicId),
       );
     }
 
@@ -160,8 +160,8 @@ exports.deleteProduit = async (req, res) => {
       produit.images.map((img) =>
         img.publicId
           ? cloudinary.uploader.destroy(img.publicId).catch(() => null)
-          : null
-      )
+          : null,
+      ),
     );
 
     await produit.deleteOne();
@@ -177,10 +177,6 @@ exports.deleteProduit = async (req, res) => {
 ================================ */
 exports.getProduits = async (req, res) => {
   try {
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 20;
-    const skip = (page - 1) * limit;
-
     const search = req.query.search;
     let filter = {};
 
@@ -196,8 +192,6 @@ exports.getProduits = async (req, res) => {
 
     const produits = await Produits.find(filter)
       .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
       .lean({ virtuals: true });
 
     res.status(200).json(produits);
@@ -251,7 +245,7 @@ exports.ajouterCommentaire = async (req, res) => {
 
     const total = produit.commentaires.reduce((a, c) => a + c.rating, 0);
     produit.averageRating = Number(
-      (total / produit.commentaires.length).toFixed(1)
+      (total / produit.commentaires.length).toFixed(1),
     );
 
     await produit.save();
@@ -310,7 +304,7 @@ exports.supprimerCommentaire = async (req, res) => {
 
     // ⚡ Chercher le commentaire en convertissant les IDs en string
     const commentaire = produit.commentaires.find(
-      (c) => c._id.toString() === commentaireId.toString()
+      (c) => c._id.toString() === commentaireId.toString(),
     );
     if (!commentaire)
       return res.status(404).json({ message: "Commentaire non trouvé" });
@@ -321,7 +315,7 @@ exports.supprimerCommentaire = async (req, res) => {
 
     // Supprimer le commentaire
     produit.commentaires = produit.commentaires.filter(
-      (c) => c._id.toString() !== commentaireId.toString()
+      (c) => c._id.toString() !== commentaireId.toString(),
     );
 
     // Recalculer la note moyenne
@@ -332,7 +326,7 @@ exports.supprimerCommentaire = async (req, res) => {
             (
               produit.commentaires.reduce((a, c) => a + c.rating, 0) /
               produit.commentaires.length
-            ).toFixed(1)
+            ).toFixed(1),
           );
 
     await produit.save();

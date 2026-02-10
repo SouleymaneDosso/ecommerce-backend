@@ -33,10 +33,30 @@ const sendWelcomeEmail = async (email, username) => {
 };
 
 // 2️⃣ Nouvelle commande
-const sendNewOrderEmail = async (email, nom, commandeId, total, panier) => {
-  await sendEmail(email, 3, { nom, commandeId, total, panier });
+const sendNewOrderEmail = async (email, commande) => {
+  // 🔹 Générer le HTML du panier côté Node.js
+  const panierHTML = commande.panier
+    .map(
+      (item) =>
+        `- ${item.nom} (${item.quantite} x ${item.prix} FCFA)`
+    )
+    .join("<br>");
+
+  // 🔹 Construire les params à envoyer à Brevo
+  const params = {
+    nom: `${commande.client.nom} ${commande.client.prenom}`,
+    commandeId: commande._id,
+    total: commande.total,
+    panierHTML, // clé spéciale pour Brevo
+  };
+
+  // 🔹 Envoyer le mail avec le template Brevo
+  await sendEmail(email, 3, params);
 };
 
+module.exports = {
+  sendNewOrderEmail,
+};
 
 // 3️⃣ Paiement soumis par le client
 const sendPaymentSubmittedEmail = async (email, step, montant, commandeId) => {

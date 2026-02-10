@@ -39,13 +39,13 @@ const creerCommande = async (req, res) => {
           couleur: item.couleur,
           taille: item.taille,
         };
-      })
+      }),
     );
 
     // Calcul du total depuis les produits pour éviter incohérences
     const totalCalculated = panierSnapshot.reduce(
       (acc, item) => acc + item.prix * item.quantite,
-      0
+      0,
     );
 
     const nouvelleCommande = new Commandeapi({
@@ -87,11 +87,7 @@ const creerCommande = async (req, res) => {
     const clientEmail = user.email;
 
     try {
-      await sendNewOrderEmail(
-        clientEmail,
-        nouvelleCommande._id,
-        nouvelleCommande.total
-      );
+      await sendNewOrderEmail(clientEmail, nouvelleCommande);
       console.log("✅ Email nouvelle commande envoyé");
     } catch (err) {
       console.error("❌ Erreur envoi email nouvelle commande:", err);
@@ -178,7 +174,7 @@ const paiementSemi = async (req, res) => {
       return res.status(404).json({ message: "Commande introuvable" });
 
     const paiementStep = commande.paiements.find(
-      (p) => p.step === Number(step)
+      (p) => p.step === Number(step),
     );
     if (!paiementStep)
       return res.status(404).json({ message: "Étape invalide" });
@@ -206,7 +202,7 @@ const paiementSemi = async (req, res) => {
         clientEmail,
         step,
         montantEnvoye,
-        commande._id
+        commande._id,
       );
       console.log("✅ Email paiement soumis envoyé");
     } else {
@@ -248,7 +244,7 @@ const confirmerPaiementAdmin = async (req, res) => {
     // ---------- Charger tous les produits du panier ----------
     const produitIds = commande.panier.map((item) => item.produitId);
     const produits = await Product.find({ _id: { $in: produitIds } }).session(
-      session
+      session,
     );
     const produitsMap = {};
     produits.forEach((p) => (produitsMap[p._id.toString()] = p));
@@ -282,7 +278,7 @@ const confirmerPaiementAdmin = async (req, res) => {
     paiementRecu.adminComment = adminComment || "";
 
     const paiementStep = commande.paiements.find(
-      (p) => p.step === paiementRecu.step
+      (p) => p.step === paiementRecu.step,
     );
     if (paiementStep) {
       paiementStep.status = "PAID";
@@ -333,7 +329,7 @@ const confirmerPaiementAdmin = async (req, res) => {
         clientEmail,
         paiementRecu.step,
         paiementRecu.montantEnvoye,
-        commande._id
+        commande._id,
       );
       console.log("✅ Email paiement confirmé envoyé");
     } else {
@@ -381,7 +377,7 @@ const rejeterPaiementAdmin = async (req, res) => {
     // ---------- Charger tous les produits du panier ----------
     const produitIds = commande.panier.map((item) => item.produitId);
     const produits = await Product.find({ _id: { $in: produitIds } }).session(
-      session
+      session,
     );
     const produitsMap = {};
     produits.forEach((p) => (produitsMap[p._id.toString()] = p));
@@ -417,7 +413,7 @@ const rejeterPaiementAdmin = async (req, res) => {
     paiementRecu.confirmedAt = null;
 
     const paiementStep = commande.paiements.find(
-      (p) => p.step === paiementRecu.step
+      (p) => p.step === paiementRecu.step,
     );
     if (paiementStep) {
       paiementStep.status = "UNPAID"; // l'étape redevient non payée
@@ -443,7 +439,7 @@ const rejeterPaiementAdmin = async (req, res) => {
         paiementRecu.step,
         paiementRecu.montantEnvoye,
         commande._id,
-        paiementRecu.adminComment
+        paiementRecu.adminComment,
       );
       console.log("✅ Email paiement rejeté envoyé");
     } else {

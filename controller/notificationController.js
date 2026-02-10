@@ -33,9 +33,10 @@ const sendWelcomeEmail = async (email, username) => {
 };
 
 // 2️⃣ Nouvelle commande
-const sendNewOrderEmail = async (email, commandeId, total) => {
-  await sendEmail(email, 3, { commandeId, total });
+const sendNewOrderEmail = async (email, nom, commandeId, total, panier) => {
+  await sendEmail(email, 3, { nom, commandeId, total, panier });
 };
+
 
 // 3️⃣ Paiement soumis par le client
 const sendPaymentSubmittedEmail = async (email, step, montant, commandeId) => {

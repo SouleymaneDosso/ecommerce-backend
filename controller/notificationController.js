@@ -1,6 +1,6 @@
 // notificationController.js
 const SibApiV3Sdk = require("sib-api-v3-sdk");
-
+const User = require("../models/User");
 // 🔹 Configuration Brevo
 const client = SibApiV3Sdk.ApiClient.instance;
 const apiKey = client.authentications["api-key"];
@@ -36,27 +36,45 @@ const sendWelcomeEmail = async (email, username) => {
 };
 
 // 2️⃣ Nouvelle commande
+// 2️⃣ Nouvelle commande
 const sendNewOrderEmail = async (email, commande) => {
-  if (!commande) {
-    console.error("❌ sendNewOrderEmail: commande undefined");
-    return;
+  try {
+    if (!commande) {
+      console.error("❌ sendNewOrderEmail: commande undefined");
+      return;
+    }
+
+    // 🔹 Récupérer l'utilisateur depuis la base
+    let nomComplet = "Client";
+
+    if (commande.client?.userId) {
+      const user = await User.findById(commande.client.userId);
+
+      if (user) {
+        nomComplet = `${user.nom || ""} ${user.prenom || ""}`.trim();
+      }
+    }
+
+    // 🔹 Générer le HTML du panier
+    const panierHTML = (commande.panier || [])
+      .map((item) => `- ${item.nom} (${item.quantite} x ${item.prix} FCFA)`)
+      .join("<br>");
+
+    // 🔹 Paramètres envoyés à Brevo
+    const params = {
+      nom: nomComplet,
+      commandeId: commande._id.toString(),
+      total: commande.total,
+      panierHTML,
+    };
+
+    // 🔹 Envoi email (templateId = 3)
+    await sendEmail(email, 3, params);
+
+    console.log("✅ Email nouvelle commande envoyé");
+  } catch (error) {
+    console.error("❌ Erreur sendNewOrderEmail :", error.message);
   }
-
-  // Générer le HTML du panier
-  const panierHTML = (commande.panier || [])
-    .map((item) => `- ${item.nom} (${item.quantite} x ${item.prix} FCFA)`)
-    .join("<br>");
-
-  // Créer l'objet params pour Brevo
-  const params = {
-    nom: `${commande.client.nom} ${commande.client.prenom}`,
-    commandeId: commande._id,
-    total: commande.total,
-    panierHTML,
-  };
-
-  // Envoyer l'email via Brevo
-  await sendEmail(email, 3, params);
 };
 
 // 3️⃣ Paiement soumis par le client

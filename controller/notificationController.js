@@ -36,44 +36,32 @@ const sendWelcomeEmail = async (email, username) => {
 };
 
 // 2️⃣ Nouvelle commande
-// 2️⃣ Nouvelle commande
 const sendNewOrderEmail = async (email, commande) => {
   try {
     if (!commande) {
-      console.error("❌ sendNewOrderEmail: commande undefined");
+      console.error("❌ commande manquante");
       return;
     }
 
-    // 🔹 Récupérer l'utilisateur depuis la base
-    let nomComplet = "Client";
+    // récupérer le user pour avoir le username
+    const user = await User.findById(commande.client.userId);
 
-    if (commande.client?.userId) {
-      const user = await User.findById(commande.client.userId);
+    const username = user ? user.username : "Client";
 
-      if (user) {
-        nomComplet = `${user.nom || ""} ${user.prenom || ""}`.trim();
-      }
-    }
-
-    // 🔹 Générer le HTML du panier
-    const panierHTML = (commande.panier || [])
+    const panierHTML = commande.panier
       .map((item) => `- ${item.nom} (${item.quantite} x ${item.prix} FCFA)`)
       .join("<br>");
 
-    // 🔹 Paramètres envoyés à Brevo
     const params = {
-      nom: nomComplet,
+      nom: username, // ton template utilise {{nom}}
       commandeId: commande._id.toString(),
       total: commande.total,
       panierHTML,
     };
 
-    // 🔹 Envoi email (templateId = 3)
     await sendEmail(email, 3, params);
-
-    console.log("✅ Email nouvelle commande envoyé");
   } catch (error) {
-    console.error("❌ Erreur sendNewOrderEmail :", error.message);
+    console.error("❌ Erreur sendNewOrderEmail:", error);
   }
 };
 

@@ -42,20 +42,24 @@ const sendNewOrderEmail = async (email, commande) => {
     return;
   }
 
-  // Générer le HTML du panier
+  // 🔥 récupérer l'utilisateur depuis la base
+  const user = await User.findById(commande.client.userId);
+
+  const nomComplet = user
+    ? `${user.nom || ""} ${user.prenom || ""}`.trim()
+    : "Client";
+
   const panierHTML = (commande.panier || [])
     .map((item) => `- ${item.nom} (${item.quantite} x ${item.prix} FCFA)`)
     .join("<br>");
 
-  // Créer l'objet params pour Brevo
   const params = {
-    nom: `${commande.client.nom} ${commande.client.prenom}`,
+    nom: nomComplet,
     commandeId: commande._id,
     total: commande.total,
     panierHTML,
   };
 
-  // Envoyer l'email via Brevo
   await sendEmail(email, 3, params);
 };
 

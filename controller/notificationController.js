@@ -37,30 +37,47 @@ const sendWelcomeEmail = async (email, username) => {
 
 // 2️⃣ Nouvelle commande
 const sendNewOrderEmail = async (email, commande) => {
-  if (!commande) {
-    console.error("❌ sendNewOrderEmail: commande undefined");
-    return;
+  try {
+    if (!commande) {
+      console.error("❌ commande undefined");
+      return;
+    }
+
+    console.log("📦 Commande reçue pour email:", commande._id);
+
+    let nomComplet = "Client";
+
+    // Vérifier que client et userId existent
+    if (commande.client && commande.client.userId) {
+      const user = await User.findById(commande.client.userId);
+
+      if (user) {
+        nomComplet = `${user.nom || ""} ${user.prenom || ""}`.trim();
+      }
+    }
+
+    const panierHTML = (commande.panier || [])
+      .map(
+        (item) =>
+          `- ${item.nom} (${item.quantite} x ${item.prix} FCFA)`
+      )
+      .join("<br>");
+
+    const params = {
+      nom: nomComplet || "Client",
+      commandeId: commande._id?.toString(),
+      total: commande.total || 0,
+      panierHTML: panierHTML || "Aucun produit",
+    };
+
+    console.log("📧 PARAMS EMAIL:", params);
+
+    await sendEmail(email, 3, params);
+
+    console.log("✅ Email nouvelle commande envoyé");
+  } catch (error) {
+    console.error("❌ Erreur sendNewOrderEmail:", error);
   }
-
-  // 🔥 récupérer l'utilisateur depuis la base
-  const user = await User.findById(commande.client.userId);
-
-  const nomComplet = user
-    ? `${user.nom || ""} ${user.prenom || ""}`.trim()
-    : "Client";
-
-  const panierHTML = (commande.panier || [])
-    .map((item) => `- ${item.nom} (${item.quantite} x ${item.prix} FCFA)`)
-    .join("<br>");
-
-  const params = {
-    nom: nomComplet,
-    commandeId: commande._id,
-    total: commande.total,
-    panierHTML,
-  };
-
-  await sendEmail(email, 3, params);
 };
 
 // 3️⃣ Paiement soumis par le client

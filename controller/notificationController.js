@@ -43,21 +43,36 @@ const sendNewOrderEmail = async (email, commande) => {
       return;
     }
 
-    // récupérer le user pour avoir le username
-    const user = await User.findById(commande.client.userId);
+    // 🔒 Sécuriser accès user
+    const userId = commande?.client?.userId || commande?.userId || null;
 
-    const username = user ? user.username : "Client";
+    let username = "Client";
 
-    const panierHTML = commande.panier
-      .map((item) => `- ${item.nom} (${item.quantite} x ${item.prix} FCFA)`)
-      .join("<br>");
+    if (userId) {
+      const user = await User.findById(userId);
+      if (user) username = user.username;
+    }
+
+    // 🔒 Sécuriser panier
+    const panierHTML = Array.isArray(commande.panier)
+      ? commande.panier
+          .map(
+            (item) =>
+              `- ${item.nom || item.title} (${item.quantite || 1} x ${
+                item.prix || item.price
+              } FCFA)`
+          )
+          .join("<br>")
+      : "Aucun produit";
 
     const params = {
-      nom: username, // ton template utilise {{nom}}
-      commandeId: commande._id.toString(),
-      total: commande.total,
+      nom: username,
+      commandeId: commande._id?.toString() || "",
+      total: commande.total || 0,
       panierHTML,
     };
+
+    console.log("📦 PARAMS ENVOYÉS :", params);
 
     await sendEmail(email, 3, params);
   } catch (error) {

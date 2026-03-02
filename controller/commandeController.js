@@ -18,7 +18,14 @@ const generateReference = (commandeId, step) => {
    ========================= */
 const creerCommande = async (req, res) => {
   try {
-    const { client, panier, modePaiement, servicePaiement } = req.body;
+    const {
+      client,
+      panier,
+      modePaiement,
+      servicePaiement,
+      fraisLivraison,
+      total,
+    } = req.body;
 
     if (!client || !panier || !servicePaiement) {
       return res.status(400).json({ message: "Champs requis manquants" });
@@ -51,7 +58,8 @@ const creerCommande = async (req, res) => {
     const nouvelleCommande = new Commandeapi({
       client: { userId: req.auth.userId, ...client },
       panier: panierSnapshot,
-      total: totalCalculated,
+      total: totalCalculated + (fraisLivraison || 0),
+      fraisLivraison: fraisLivraison || 0,
       modePaiement,
       servicePaiement,
       paiements: [],

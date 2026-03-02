@@ -26,7 +26,7 @@ const PaiementStepSchema = new mongoose.Schema(
       type: Date,
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 /* =========================
@@ -80,7 +80,7 @@ const PaiementRecuSchema = new mongoose.Schema(
       type: Date,
     },
   },
-  { timestamps: false }
+  { timestamps: false },
 );
 
 /* =========================
@@ -103,7 +103,7 @@ const PanierItemSchema = new mongoose.Schema(
     couleur: String,
     taille: String,
   },
-  { _id: false }
+  { _id: false },
 );
 
 /* =========================
@@ -137,6 +137,10 @@ const CommandeSchema = new mongoose.Schema(
       type: Number,
       required: true,
       min: 0,
+    },
+    fraisLivraison: {
+      type: Number,
+      default: 0,
     },
 
     /* ---------- CONFIG PAIEMENT ---------- */
@@ -172,7 +176,7 @@ const CommandeSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 /* =========================
@@ -181,6 +185,5 @@ const CommandeSchema = new mongoose.Schema(
 CommandeSchema.index({ "client.userId": 1 });
 CommandeSchema.index({ statusCommande: 1 });
 CommandeSchema.index({ "paiementsRecus._id": 1 });
-
 
 module.exports = mongoose.model("Commandeapi", CommandeSchema);

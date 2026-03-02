@@ -108,8 +108,8 @@ const sendPaymentRejectedEmail = async (
   step,
   montant,
   commandeId,
-  reason = "Le paiement a été rejeté par l'administrateur. Veuillez vérifier les informations fournies ou contacter le support pour plus d'assistance.",
-  username,
+  reason ,
+  username= "Client",
 ) => {
   await sendEmail(email, 6, { step, montant, commandeId, reason, username });
 };

@@ -65,6 +65,7 @@ const creerCommande = async (req, res) => {
       paiements: [],
       paiementsRecus: [],
       statusCommande: "PENDING",
+      username: client.username || "Client",
     });
 
     // Créer les étapes de paiement
@@ -223,6 +224,7 @@ const paiementSemi = async (req, res) => {
         step,
         montantEnvoye,
         commande._id,
+        clientUser?.username || "Client",
       );
       console.log("✅ Email paiement soumis envoyé");
     } else {
@@ -350,6 +352,7 @@ const confirmerPaiementAdmin = async (req, res) => {
         paiementRecu.step,
         paiementRecu.montantEnvoye,
         commande._id,
+        clientUser?.username || "Client",
       );
       console.log("✅ Email paiement confirmé envoyé");
     } else {
@@ -460,6 +463,7 @@ const rejeterPaiementAdmin = async (req, res) => {
         paiementRecu.montantEnvoye,
         commande._id,
         paiementRecu.adminComment,
+        clientUser?.username || "Client",
       );
       console.log("✅ Email paiement rejeté envoyé");
     } else {

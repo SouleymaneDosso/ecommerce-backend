@@ -60,7 +60,7 @@ const sendNewOrderEmail = async (email, commande) => {
             (item) =>
               `- ${item.nom || item.title} (${item.quantite || 1} x ${
                 item.prix || item.price
-              } FCFA)`
+              } FCFA)`,
           )
           .join("<br>")
       : "Aucun produit";
@@ -73,7 +73,10 @@ const sendNewOrderEmail = async (email, commande) => {
     };
 
     console.log("📦 PARAMS ENVOYÉS VERS BREVO :", params);
-
+    console.log("ENVOI EMAIL NOUVELLE COMMANDE:", {
+      to: email,
+      params,
+    });
     await sendEmail(email, 3, params);
   } catch (error) {
     console.error("❌ Erreur sendNewOrderEmail:", error);
@@ -81,13 +84,25 @@ const sendNewOrderEmail = async (email, commande) => {
 };
 
 // 3️⃣ Paiement soumis par le client
-const sendPaymentSubmittedEmail = async (email, step, montant, commandeId) => {
-  await sendEmail(email, 4, { step, montant, commandeId });
+const sendPaymentSubmittedEmail = async (
+  email,
+  step,
+  montant,
+  commandeId,
+  username,
+) => {
+  await sendEmail(email, 4, { step, montant, commandeId, username });
 };
 
 // 4️⃣ Paiement confirmé par admin
-const sendPaymentConfirmedEmail = async (email, step, montant, commandeId) => {
-  await sendEmail(email, 5, { step, montant, commandeId });
+const sendPaymentConfirmedEmail = async (
+  email,
+  step,
+  montant,
+  commandeId,
+  username,
+) => {
+  await sendEmail(email, 5, { step, montant, commandeId, username });
 };
 
 // 5️⃣ Paiement rejeté par admin
@@ -96,9 +111,10 @@ const sendPaymentRejectedEmail = async (
   step,
   montant,
   commandeId,
-  reason,
+  reason = "Le paiement a été rejeté par l'administrateur. Veuillez vérifier les informations fournies ou contacter le support pour plus d'assistance.",
+  username,
 ) => {
-  await sendEmail(email, 6, { step, montant, commandeId, reason });
+  await sendEmail(email, 6, { step, montant, commandeId, reason, username });
 };
 
 module.exports = {

@@ -73,7 +73,7 @@ const sendNewOrderEmail = async (email, commande) => {
     };
 
    
-    await sendEmail(email, 3, params);
+    await sendEmail(email, 11, params);
   } catch (error) {
     console.error("❌ Erreur sendNewOrderEmail:", error);
   }

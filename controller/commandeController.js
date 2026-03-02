@@ -108,7 +108,7 @@ const creerCommande = async (req, res) => {
     const clientEmail = user.email;
 
     try {
-      await sendNewOrderEmail(clientEmail, nouvelleCommande);
+      await sendNewOrderEmail(clientEmail, nouvelleCommande, );
       console.log("✅ Email nouvelle commande envoyé");
     } catch (err) {
       console.error("❌ Erreur envoi email nouvelle commande:", err);
@@ -381,7 +381,6 @@ const confirmerPaiementAdmin = async (req, res) => {
 const rejeterPaiementAdmin = async (req, res) => {
   const session = await Commandeapi.startSession();
   session.startTransaction();
-
   try {
     const { id } = req.params;
     const { paiementRecuId, adminComment } = req.body;
@@ -464,6 +463,7 @@ const rejeterPaiementAdmin = async (req, res) => {
         commande._id,
         paiementRecu.adminComment,
         clientUser?.username || "Client",
+        reason="Le paiement a été rejeté par l'administrateur. Veuillez vérifier les informations fournies ou contacter le support pour plus d'assistance.",
       );
       console.log("✅ Email paiement rejeté envoyé");
     } else {

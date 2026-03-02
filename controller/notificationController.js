@@ -72,11 +72,7 @@ const sendNewOrderEmail = async (email, commande) => {
       panierHTML,
     };
 
-    console.log("📦 PARAMS ENVOYÉS VERS BREVO :", params);
-    console.log("ENVOI EMAIL NOUVELLE COMMANDE:", {
-      to: email,
-      params,
-    });
+   
     await sendEmail(email, 3, params);
   } catch (error) {
     console.error("❌ Erreur sendNewOrderEmail:", error);
@@ -89,7 +85,8 @@ const sendPaymentSubmittedEmail = async (
   step,
   montant,
   commandeId,
-  username,
+  username = "Client",
+
 ) => {
   await sendEmail(email, 4, { step, montant, commandeId, username });
 };
@@ -100,7 +97,7 @@ const sendPaymentConfirmedEmail = async (
   step,
   montant,
   commandeId,
-  username,
+  username= "Client",
 ) => {
   await sendEmail(email, 5, { step, montant, commandeId, username });
 };

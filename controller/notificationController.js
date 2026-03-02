@@ -72,7 +72,7 @@ const sendNewOrderEmail = async (email, commande) => {
       panierHTML,
     };
 
-    console.log("📦 PARAMS ENVOYÉS :", params);
+    console.log("📦 PARAMS ENVOYÉS VERS BREVO :", params);
 
     await sendEmail(email, 3, params);
   } catch (error) {

@@ -68,12 +68,24 @@ const creerCommande = async (req, res) => {
     });
 
     // Créer les étapes de paiement
+    // 🔥 Calcul final sécurisé
+    const totalFinal = totalCalculated + (fraisLivraison || 0);
+
+    // Créer les étapes de paiement
     if (modePaiement === "installments") {
-      const montantParEtape = totalCalculated / 3;
+      const montantParEtape = Math.ceil(totalFinal / 3);
+
       for (let i = 1; i <= 3; i++) {
+        let montant = montantParEtape;
+
+        // Ajuster la dernière étape pour éviter erreur d'arrondi
+        if (i === 3) {
+          montant = totalFinal - montantParEtape * 2;
+        }
+
         nouvelleCommande.paiements.push({
           step: i,
-          amountExpected: montantParEtape,
+          amountExpected: montant,
           status: "UNPAID",
           reference: generateReference(nouvelleCommande._id, i),
           validatedAt: null,
@@ -82,7 +94,7 @@ const creerCommande = async (req, res) => {
     } else {
       nouvelleCommande.paiements.push({
         step: 1,
-        amountExpected: totalCalculated,
+        amountExpected: totalFinal, // 🔥 CORRIGÉ ICI
         status: "UNPAID",
         reference: generateReference(nouvelleCommande._id, 1),
         validatedAt: null,

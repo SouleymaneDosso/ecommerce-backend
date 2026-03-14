@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-// Stocker le consentement marketing
+// POST : stocker le consentement marketing
 router.post("/consent", (req, res) => {
   const { marketingConsent } = req.body;
 
@@ -10,13 +10,19 @@ router.post("/consent", (req, res) => {
   }
 
   res.cookie("marketingConsent", marketingConsent, {
-    httpOnly: true, // cookie inaccessible depuis JS côté client
+    httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
     maxAge: 365 * 24 * 60 * 60 * 1000, // 1 an
   });
 
   res.status(200).json({ message: "Consentement enregistré ✅" });
+});
+
+// GET : récupérer le consentement marketing
+router.get("/consent", (req, res) => {
+  const marketingConsent = req.cookies.marketingConsent || false;
+  res.status(200).json({ marketingConsent });
 });
 
 module.exports = router;

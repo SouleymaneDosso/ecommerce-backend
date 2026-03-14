@@ -13,7 +13,7 @@ router.post("/consent", (req, res) => {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
-    maxAge: 365 * 24 * 60 * 60 * 1000, // 1 an
+    maxAge: 365 * 24 * 60 * 60 * 1000,
   });
 
   res.status(200).json({ message: "Consentement enregistré ✅" });
@@ -21,7 +21,7 @@ router.post("/consent", (req, res) => {
 
 // GET : récupérer le consentement marketing
 router.get("/consent", (req, res) => {
-  const marketingConsent = req.cookies.marketingConsent || false;
+  const marketingConsent = req.cookies.marketingConsent === "true";
   res.status(200).json({ marketingConsent });
 });
 

@@ -65,6 +65,10 @@ const schemaproduits = new mongoose.Schema(
       enum: ["new", "promo", null],
       default: null,
     },
+details: {
+  type: Map,
+  of: String
+}
   },
   {
     timestamps: true,

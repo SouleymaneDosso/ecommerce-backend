@@ -37,6 +37,16 @@ exports.sauvegarderProduits = async (req, res) => {
       publicId: file.filename,
       isMain: index === mainIndex,
     }));
+    const details = safeParse(req.body.details, {});
+
+    const cleanDetails = {
+      matiere: details.matiere,
+      poids: details.poids,
+      coupe: details.coupe,
+      saison: details.saison,
+      entretien: details.entretien,
+      paysFabrication: details.paysFabrication,
+    };
 
     const produit = await Produits.create({
       title: req.body.title,
@@ -50,6 +60,7 @@ exports.sauvegarderProduits = async (req, res) => {
       categorie: req.body.categorie,
       badge: req.body.badge || null,
       hero: req.body.hero === "true",
+      details: cleanDetails,
       images,
       userId: req.admin._id,
     });
@@ -122,6 +133,7 @@ exports.updateProduit = async (req, res) => {
       "genre",
       "categorie",
       "badge",
+      "details",
       "hero",
     ];
 
@@ -129,6 +141,8 @@ exports.updateProduit = async (req, res) => {
       if (req.body[field] !== undefined) {
         if (["tailles", "couleurs", "stockParVariation"].includes(field)) {
           produit[field] = safeParse(req.body[field], []);
+        } else if (field === "details") {
+          produit[field] = safeParse(req.body[field], {});
         } else if (field === "hero") {
           produit[field] = req.body[field] === "true";
         } else if (field === "price" || field === "stock") {

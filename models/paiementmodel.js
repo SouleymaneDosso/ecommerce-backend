@@ -144,16 +144,16 @@ const CommandeSchema = new mongoose.Schema(
     },
 
     /* ---------- CONFIG PAIEMENT ---------- */
-    modePaiement: {
-      type: String,
-      enum: ["full", "installments"],
-      default: "full",
-    },
+ modePaiement: {
+  type: String,
+  enum: ["full", "installments", "cod"],
+  default: "full",
+},
 
     servicePaiement: {
       type: String,
       enum: ["orange", "wave"],
-      required: true,
+      required: false,
     },
 
     /* ---------- PAIEMENTS ---------- */
@@ -170,7 +170,7 @@ const CommandeSchema = new mongoose.Schema(
     /* ---------- STATUT ---------- */
     statusCommande: {
       type: String,
-      enum: ["PENDING", "PARTIALLY_PAID", "PAID"],
+      enum: ["PENDING", "PARTIALLY_PAID", "PAID", "CONFIRMED", "DELIVERED"],
       default: "PENDING",
     },
   },

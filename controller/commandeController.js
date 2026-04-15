@@ -27,7 +27,7 @@ const creerCommande = async (req, res) => {
       total,
     } = req.body;
 
-    if (!client || !panier || !servicePaiement) {
+    if (!client || !panier) {
       return res.status(400).json({ message: "Champs requis manquants" });
     }
 
@@ -61,7 +61,7 @@ const creerCommande = async (req, res) => {
       total: totalCalculated + (fraisLivraison || 0),
       fraisLivraison: fraisLivraison || 0,
       modePaiement,
-      servicePaiement,
+      servicePaiement: modePaiement === "cod" ? "livraison" : servicePaiement,
       paiements: [],
       paiementsRecus: [],
       statusCommande: "PENDING",
@@ -73,13 +73,16 @@ const creerCommande = async (req, res) => {
     const totalFinal = totalCalculated + (fraisLivraison || 0);
 
     // Créer les étapes de paiement
-    if (modePaiement === "installments") {
+    if (modePaiement === "cod") {
+      // 🚚 Paiement à la livraison → aucun paiement maintenant
+      nouvelleCommande.paiements = [];
+      nouvelleCommande.statusCommande = "CONFIRMED";
+    } else if (modePaiement === "installments") {
       const montantParEtape = Math.ceil(totalFinal / 3);
 
       for (let i = 1; i <= 3; i++) {
         let montant = montantParEtape;
 
-        // Ajuster la dernière étape pour éviter erreur d'arrondi
         if (i === 3) {
           montant = totalFinal - montantParEtape * 2;
         }
@@ -89,26 +92,23 @@ const creerCommande = async (req, res) => {
           amountExpected: montant,
           status: "UNPAID",
           reference: generateReference(nouvelleCommande._id, i),
-          validatedAt: null,
         });
       }
     } else {
       nouvelleCommande.paiements.push({
         step: 1,
-        amountExpected: totalFinal, // 🔥 CORRIGÉ ICI
+        amountExpected: totalFinal,
         status: "UNPAID",
         reference: generateReference(nouvelleCommande._id, 1),
-        validatedAt: null,
       });
     }
-
     await nouvelleCommande.save();
 
     const user = await User.findById(req.auth.userId);
     const clientEmail = user.email;
 
     try {
-      await sendNewOrderEmail(clientEmail, nouvelleCommande, );
+      await sendNewOrderEmail(clientEmail, nouvelleCommande);
       console.log("✅ Email nouvelle commande envoyé");
     } catch (err) {
       console.error("❌ Erreur envoi email nouvelle commande:", err);
@@ -193,6 +193,12 @@ const paiementSemi = async (req, res) => {
     const commande = await Commandeapi.findById(id);
     if (!commande)
       return res.status(404).json({ message: "Commande introuvable" });
+
+    if (commande.modePaiement === "cod") {
+      return res.status(400).json({
+        message: "Paiement non requis pour livraison",
+      });
+    }
 
     const paiementStep = commande.paiements.find(
       (p) => p.step === Number(step),
@@ -463,7 +469,8 @@ const rejeterPaiementAdmin = async (req, res) => {
         commande._id,
         paiementRecu.adminComment,
         clientUser?.username || "Client",
-        reason="Le paiement a été rejeté par l'administrateur. Veuillez vérifier les informations fournies ou contacter le support pour plus d'assistance.",
+        (reason =
+          "Le paiement a été rejeté par l'administrateur. Veuillez vérifier les informations fournies ou contacter le support pour plus d'assistance."),
       );
       console.log("✅ Email paiement rejeté envoyé");
     } else {

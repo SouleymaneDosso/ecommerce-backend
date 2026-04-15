@@ -152,7 +152,7 @@ const CommandeSchema = new mongoose.Schema(
 
     servicePaiement: {
       type: String,
-      enum: ["orange", "wave"],
+      enum: ["orange", "wave", "livraison"],
       required: false,
     },
 

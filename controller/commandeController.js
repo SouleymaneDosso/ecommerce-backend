@@ -74,9 +74,8 @@ const creerCommande = async (req, res) => {
 
     // Créer les étapes de paiement
     if (modePaiement === "cod") {
-      // 🚚 Paiement à la livraison → aucun paiement maintenant
       nouvelleCommande.paiements = [];
-      nouvelleCommande.statusCommande = "CONFIRMED";
+      nouvelleCommande.statusCommande = "PENDING";
     } else if (modePaiement === "installments") {
       const montantParEtape = Math.ceil(totalFinal / 3);
 

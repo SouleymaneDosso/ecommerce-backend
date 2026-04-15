@@ -114,10 +114,23 @@ const sendPaymentRejectedEmail = async (
   await sendEmail(email, 6, { step, montant, commandeId, reason, username });
 };
 
+
+const sendOrderDeliveredEmail = async (
+  email,
+  commandeId,
+  username = "Client"
+) => {
+  await sendEmail(email, 12, { // ⚠️ mets ton template Brevo ici (ex: 12)
+    commandeId,
+    username,
+  });
+};
+
 module.exports = {
   sendWelcomeEmail,
   sendNewOrderEmail,
   sendPaymentSubmittedEmail,
   sendPaymentConfirmedEmail,
   sendPaymentRejectedEmail,
+   sendOrderDeliveredEmail,
 };

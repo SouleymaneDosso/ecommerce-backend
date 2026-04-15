@@ -10,6 +10,7 @@ const {
   paiementSemi,
   confirmerPaiementAdmin,
   rejeterPaiementAdmin,
+  marquerCommeLivre,
 } = require("../controller/commandeController");
 
 const authClient = require("../authentification/authClient");
@@ -69,5 +70,6 @@ router.put("/admin/commandes/:id/valider-paiement", confirmerPaiementAdmin);
 
 router.put("/admin/commandes/:id/rejeter-paiement", rejeterPaiementAdmin);
 router.put("/admin/commandes/:id/confirmer-cod", confirmerCommandeCOD);
+router.put("/admin/commandes/:id/livrer", marquerCommeLivre);
 
 module.exports = router;

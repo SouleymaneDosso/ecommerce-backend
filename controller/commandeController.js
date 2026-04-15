@@ -515,6 +515,36 @@ const confirmerCommandeCOD = async (req, res) => {
   }
 };
 
+const marquerCommeLivre = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const commande = await Commandeapi.findById(id);
+    if (!commande)
+      return res.status(404).json({ message: "Commande introuvable" });
+
+    commande.statusCommande = "DELIVERED";
+    await commande.save();
+
+    const clientUser = await User.findById(commande.client.userId);
+    const clientEmail = clientUser?.email;
+
+    if (clientEmail) {
+      await sendOrderDeliveredEmail(
+        clientEmail,
+        commande._id,
+        clientUser?.username || "Client"
+      );
+      console.log("✅ Email commande livrée envoyé");
+    }
+
+    res.json({ message: "Commande marquée comme livrée", commande });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Erreur serveur" });
+  }
+};
+
 module.exports = {
   creerCommande,
   getCommandeById,
@@ -523,4 +553,5 @@ module.exports = {
   confirmerPaiementAdmin,
   rejeterPaiementAdmin,
   confirmerCommandeCOD,
+  marquerCommeLivre,
 };

@@ -6,6 +6,7 @@ const {
   creerCommande,
   getCommandeById,
   getCommandesAdmin,
+  confirmerCommandeCOD,
   paiementSemi,
   confirmerPaiementAdmin,
   rejeterPaiementAdmin,
@@ -67,5 +68,6 @@ router.get("/admin/commandes", getCommandesAdmin);
 router.put("/admin/commandes/:id/valider-paiement", confirmerPaiementAdmin);
 
 router.put("/admin/commandes/:id/rejeter-paiement", rejeterPaiementAdmin);
+router.put("/admin/commandes/:id/confirmer-cod", confirmerCommandeCOD);
 
 module.exports = router;

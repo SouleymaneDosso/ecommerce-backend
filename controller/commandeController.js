@@ -494,6 +494,27 @@ const rejeterPaiementAdmin = async (req, res) => {
   }
 };
 
+const confirmerCommandeCOD = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const commande = await Commandeapi.findById(id);
+    if (!commande)
+      return res.status(404).json({ message: "Commande introuvable" });
+
+    if (commande.modePaiement !== "cod") {
+      return res.status(400).json({ message: "Pas une commande COD" });
+    }
+
+    commande.statusCommande = "CONFIRMED";
+    await commande.save();
+
+    res.json({ message: "Commande confirmée", commande });
+  } catch (err) {
+    res.status(500).json({ message: "Erreur serveur" });
+  }
+};
+
 module.exports = {
   creerCommande,
   getCommandeById,
@@ -501,4 +522,5 @@ module.exports = {
   paiementSemi,
   confirmerPaiementAdmin,
   rejeterPaiementAdmin,
+  confirmerCommandeCOD,
 };

@@ -450,13 +450,15 @@ const rejeterPaiementAdmin = async (req, res) => {
     }
 
     // ---------- Mettre à jour le statut global ----------
-    if (commande.paiements.every((p) => p.status === "PAID")) {
-      commande.statusCommande = "PAID";
-    } else if (commande.paiements.some((p) => p.status === "PENDING")) {
-      commande.statusCommande = "PARTIALLY_PAID";
-    } else {
-      commande.statusCommande = "PENDING";
-    }
+   if (commande.modePaiement !== "cod") {
+  if (commande.paiements.every((p) => p.status === "PAID")) {
+    commande.statusCommande = "PAID";
+  } else if (commande.paiements.some((p) => p.status === "PENDING")) {
+    commande.statusCommande = "PARTIALLY_PAID";
+  } else {
+    commande.statusCommande = "PENDING";
+  }
+}
 
     await commande.save({ session });
     const clientUser = await User.findById(commande.client.userId);

@@ -120,7 +120,7 @@ const sendOrderDeliveredEmail = async (
   commandeId,
   username = "Client"
 ) => {
-  await sendEmail(email, 12, { // ⚠️ mets ton template Brevo ici (ex: 12)
+  await sendEmail(email, 12, {
     commandeId,
     username,
   });

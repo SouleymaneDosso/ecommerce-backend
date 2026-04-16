@@ -6,6 +6,7 @@ const {
   sendPaymentSubmittedEmail,
   sendPaymentConfirmedEmail,
   sendPaymentRejectedEmail,
+  sendOrderDeliveredEmail,
 } = require("../controller/notificationController");
 
 // Générer une référence unique pour chaque étape de paiement

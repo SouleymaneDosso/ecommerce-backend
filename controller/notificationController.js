@@ -1,6 +1,7 @@
 // notificationController.js
 const SibApiV3Sdk = require("sib-api-v3-sdk");
 const User = require("../models/User");
+const Commandeapi = require("../models/paiementmodel");
 // 🔹 Configuration Brevo
 const client = SibApiV3Sdk.ApiClient.instance;
 const apiKey = client.authentications["api-key"];
@@ -72,7 +73,6 @@ const sendNewOrderEmail = async (email, commande) => {
       panierHTML,
     };
 
-   
     await sendEmail(email, 11, params);
   } catch (error) {
     console.error("❌ Erreur sendNewOrderEmail:", error);
@@ -86,7 +86,6 @@ const sendPaymentSubmittedEmail = async (
   montant,
   commandeId,
   username = "Client",
-
 ) => {
   await sendEmail(email, 4, { step, montant, commandeId, username });
 };
@@ -97,7 +96,7 @@ const sendPaymentConfirmedEmail = async (
   step,
   montant,
   commandeId,
-  username= "Client",
+  username = "Client",
 ) => {
   await sendEmail(email, 5, { step, montant, commandeId, username });
 };
@@ -108,22 +107,49 @@ const sendPaymentRejectedEmail = async (
   step,
   montant,
   commandeId,
-  reason ,
-  username= "Client",
+  reason,
+  username = "Client",
 ) => {
   await sendEmail(email, 6, { step, montant, commandeId, reason, username });
 };
 
-
 const sendOrderDeliveredEmail = async (
   email,
   commandeId,
-  username = "Client"
+  username = "Client",
 ) => {
   await sendEmail(email, 12, {
     commandeId,
     username,
   });
+};
+
+const sendConfirmationEmail = async (email, commandeId, username) => {
+  try {
+    const commande = await Commandeapi.findById(commandeId);
+
+    if (!commande) {
+      console.log("Commande manquante !");
+      return;
+    }
+
+    const panierhtml = Array.isArray(commande.panier)
+      ? commande.panier
+          .map((item) => `- ${item.nom} (${item.quantite} x ${item.prix} FCFA)`)
+          .join("<br>")
+      : "Aucun produit present";
+
+
+    const params = {
+      username,
+      panierhtml,
+      commandeId: commande._id,
+    };
+
+    await sendEmail(email, 13, params);
+  } catch (error) {
+    console.error("Erreur envoi email confirmation :", error);
+  }
 };
 
 module.exports = {
@@ -132,6 +158,7 @@ module.exports = {
   sendPaymentSubmittedEmail,
   sendPaymentConfirmedEmail,
   sendPaymentRejectedEmail,
-   sendOrderDeliveredEmail,
-    sendOrderDeliveredEmail,
+  sendOrderDeliveredEmail,
+  sendOrderDeliveredEmail,
+  sendConfirmationEmail,
 };

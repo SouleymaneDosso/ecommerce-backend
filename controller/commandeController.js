@@ -7,6 +7,7 @@ const {
   sendPaymentConfirmedEmail,
   sendPaymentRejectedEmail,
   sendOrderDeliveredEmail,
+  sendConfirmationEmail,
 } = require("../controller/notificationController");
 
 // Générer une référence unique pour chaque étape de paiement
@@ -265,7 +266,7 @@ const confirmerPaiementAdmin = async (req, res) => {
     const paiementRecu = commande.paiementsRecus.id(paiementRecuId);
     if (!paiementRecu)
       return res.status(404).json({ message: "Paiement non trouvé" });
- 
+
     if (paiementRecu.status === "CONFIRMED")
       return res.status(400).json({ message: "Paiement déjà confirmé" });
 
@@ -342,13 +343,13 @@ const confirmerPaiementAdmin = async (req, res) => {
     }
 
     // ---------- Mettre à jour le statut global ----------
-if (commande.modePaiement !== "cod") {
-  if (commande.paiements.every((p) => p.status === "PAID")) {
-    commande.statusCommande = "PAID";
-  } else {
-    commande.statusCommande = "PARTIALLY_PAID";
-  }
-}
+    if (commande.modePaiement !== "cod") {
+      if (commande.paiements.every((p) => p.status === "PAID")) {
+        commande.statusCommande = "PAID";
+      } else {
+        commande.statusCommande = "PARTIALLY_PAID";
+      }
+    }
 
     await commande.save({ session });
     const clientUser = await User.findById(commande.client.userId);
@@ -451,15 +452,15 @@ const rejeterPaiementAdmin = async (req, res) => {
     }
 
     // ---------- Mettre à jour le statut global ----------
-   if (commande.modePaiement !== "cod") {
-  if (commande.paiements.every((p) => p.status === "PAID")) {
-    commande.statusCommande = "PAID";
-  } else if (commande.paiements.some((p) => p.status === "PENDING")) {
-    commande.statusCommande = "PARTIALLY_PAID";
-  } else {
-    commande.statusCommande = "PENDING";
-  }
-}
+    if (commande.modePaiement !== "cod") {
+      if (commande.paiements.every((p) => p.status === "PAID")) {
+        commande.statusCommande = "PAID";
+      } else if (commande.paiements.some((p) => p.status === "PENDING")) {
+        commande.statusCommande = "PARTIALLY_PAID";
+      } else {
+        commande.statusCommande = "PENDING";
+      }
+    }
 
     await commande.save({ session });
     const clientUser = await User.findById(commande.client.userId);
@@ -511,10 +512,27 @@ const confirmerCommandeCOD = async (req, res) => {
       return res.status(400).json({ message: "Pas une commande COD" });
     }
 
-    // 🔥 IMPORTANT : ne pas utiliser PAID
     commande.statusCommande = "CONFIRMED";
-
     await commande.save();
+
+    // ✅ récupérer le user correctement
+    const userClient = await User.findById(commande.client.userId);
+
+    if (!userClient) {
+      console.log("Utilisateur introuvable");
+      return;
+    }
+
+    const email = userClient.email;
+
+    // ✅ construire le vrai username depuis TON MODEL
+    const username = `${commande.client.prenom} ${commande.client.nom}`;
+
+    // ✅ appel correct
+    if (email) {
+      await sendConfirmationEmail(email, commande._id, username);
+      console.log("✅ Email confirmation COD envoyé");
+    }
 
     res.json({ message: "Commande confirmée", commande });
   } catch (err) {
@@ -541,7 +559,7 @@ const marquerCommeLivre = async (req, res) => {
       await sendOrderDeliveredEmail(
         clientEmail,
         commande._id,
-        clientUser?.username || "Client"
+        clientUser?.username || "Client",
       );
       console.log("✅ Email commande livrée envoyé");
     }

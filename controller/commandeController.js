@@ -264,7 +264,7 @@ const confirmerPaiementAdmin = async (req, res) => {
     const paiementRecu = commande.paiementsRecus.id(paiementRecuId);
     if (!paiementRecu)
       return res.status(404).json({ message: "Paiement non trouvé" });
-
+ 
     if (paiementRecu.status === "CONFIRMED")
       return res.status(400).json({ message: "Paiement déjà confirmé" });
 
@@ -341,11 +341,13 @@ const confirmerPaiementAdmin = async (req, res) => {
     }
 
     // ---------- Mettre à jour le statut global ----------
-    if (commande.paiements.every((p) => p.status === "PAID")) {
-      commande.statusCommande = "PAID";
-    } else {
-      commande.statusCommande = "PARTIALLY_PAID";
-    }
+if (commande.modePaiement !== "cod") {
+  if (commande.paiements.every((p) => p.status === "PAID")) {
+    commande.statusCommande = "PAID";
+  } else {
+    commande.statusCommande = "PARTIALLY_PAID";
+  }
+}
 
     await commande.save({ session });
     const clientUser = await User.findById(commande.client.userId);
@@ -506,11 +508,14 @@ const confirmerCommandeCOD = async (req, res) => {
       return res.status(400).json({ message: "Pas une commande COD" });
     }
 
+    // 🔥 IMPORTANT : ne pas utiliser PAID
     commande.statusCommande = "CONFIRMED";
+
     await commande.save();
 
     res.json({ message: "Commande confirmée", commande });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Erreur serveur" });
   }
 };

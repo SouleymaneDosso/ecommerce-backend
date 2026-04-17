@@ -17,24 +17,22 @@ const server = http.createServer(app);
 const { Server } = require("socket.io");
 
 const io = new Server(server, {
-  cors: {
-    origin: ["https://ecommer-numa.vercel.app"],
-  },
+ cors: { origin: "*" }
 });
 
 app.set("io", io);
 
 // ✅ AJOUT ICI
 io.on("connection", (socket) => {
-  console.log("🟢 Client connecté");
+  console.log("🟢 Nouveau client connecté :", socket.id);
 
-  socket.on("joinUser", (userId) => {
+  socket.on("join_room", (userId) => {
     socket.join(userId);
-    console.log("User room:", userId);
+    console.log(`✅ User ${userId} a rejoint sa room`);
   });
 
   socket.on("disconnect", () => {
-    console.log("🔴 Client déconnecté");
+    console.log("🔴 Client déconnecté :", socket.id);
   });
 });
 

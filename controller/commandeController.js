@@ -514,6 +514,12 @@ const confirmerCommandeCOD = async (req, res) => {
 
     commande.statusCommande = "CONFIRMED";
     await commande.save();
+    const io = req.app.get("io");
+
+    io.to(commande.client.userId.toString()).emit("commande_update", {
+      id: commande._id,
+      status: "CONFIRMED",
+    });
 
     // ✅ récupérer le user correctement
     const userClient = await User.findById(commande.client.userId);
@@ -621,6 +627,15 @@ const marquerCommeLivre = async (req, res) => {
     commande.paidAt = new Date();
 
     await commande.save({ session });
+    const io = req.app.get("io");
+
+    commande.statusCommande = "DELIVERED";
+    await commande.save();
+
+    io.to(commande.client.userId.toString()).emit("commande_update", {
+      id: commande._id,
+      status: "DELIVERED",
+    });
 
     // =======================
     // 3. EMAIL (APRÈS SAVE)
@@ -656,7 +671,6 @@ const marquerCommeLivre = async (req, res) => {
   }
 };
 
-
 const marquerCommeExpedie = async (req, res) => {
   try {
     const { id } = req.params;
@@ -668,6 +682,14 @@ const marquerCommeExpedie = async (req, res) => {
     commande.statusCommande = "SHIPPED";
 
     await commande.save();
+    const io = req.app.get("io");
+
+    commande.statusCommande = "SHIPPED";
+
+    io.to(commande.client.userId.toString()).emit("commande_update", {
+      id: commande._id,
+      status: "SHIPPED",
+    });
 
     res.json({ message: "Commande en cours de livraison", commande });
   } catch (err) {

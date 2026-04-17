@@ -11,7 +11,7 @@ router.post("/consent", (req, res) => {
   }
 
   // ⚡ Cookie configuré pour cross-domain + React
-  res.cookie("marketingConsent", marketingConsent, {
+res.cookie("marketingConsent", String(marketingConsent), {
     maxAge: 365 * 24 * 60 * 60 * 1000, // 1 an
     path: "/",             // accessible sur tout le site
     httpOnly: false,       // React peut lire le cookie

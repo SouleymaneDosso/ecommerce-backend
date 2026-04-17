@@ -9,7 +9,7 @@ router.get("/recommandations/:id", mesProduits.getRecommendations);
 router.get("/:id", mesProduits.getProduitById);
 router.get("/new", mesProduits.getNewProduits);
 // 🔹 Commentaires
-router.get("/:id/commentaires", mesProduits.getCommentaires); // Tous les utilisateurs peuvent voir les commentaires
-router.post("/:id/commentaires", authClient, mesProduits.ajouterCommentaire); // Ajouter un commentaire (client)
+router.get("/:id/commentaires", mesProduits.getCommentaires); 
+router.post("/:id/commentaires", authClient, mesProduits.ajouterCommentaire); 
 
 module.exports = router;

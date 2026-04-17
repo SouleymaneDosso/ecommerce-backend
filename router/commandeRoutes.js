@@ -11,6 +11,7 @@ const {
   confirmerPaiementAdmin,
   rejeterPaiementAdmin,
   marquerCommeLivre,
+  marquerCommeExpedie
 } = require("../controller/commandeController");
 
 const authClient = require("../authentification/authClient");
@@ -67,6 +68,7 @@ router.get("/admin/commandes", getCommandesAdmin);
 
 // Confirmer un paiement envoyé par le client
 router.put("/admin/commandes/:id/valider-paiement", confirmerPaiementAdmin);
+router.put("/commandes/:id/ship", marquerCommeExpedie);
 
 router.put("/admin/commandes/:id/rejeter-paiement", rejeterPaiementAdmin);
 router.put("/admin/commandes/:id/confirmer-cod", confirmerCommandeCOD);

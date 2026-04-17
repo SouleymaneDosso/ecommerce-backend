@@ -656,11 +656,31 @@ const marquerCommeLivre = async (req, res) => {
   }
 };
 
+
+const marquerCommeExpedie = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const commande = await Commandeapi.findById(id);
+    if (!commande)
+      return res.status(404).json({ message: "Commande introuvable" });
+
+    commande.statusCommande = "SHIPPED";
+
+    await commande.save();
+
+    res.json({ message: "Commande en cours de livraison", commande });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Erreur serveur" });
+  }
+};
 module.exports = {
   creerCommande,
   getCommandeById,
   getCommandesAdmin,
   paiementSemi,
+  marquerCommeExpedie,
   confirmerPaiementAdmin,
   rejeterPaiementAdmin,
   confirmerCommandeCOD,

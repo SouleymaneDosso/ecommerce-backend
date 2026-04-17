@@ -166,14 +166,14 @@ const CommandeSchema = new mongoose.Schema(
       type: [PaiementRecuSchema],
       default: [],
     },
-    
+
     isPaid: { type: Boolean, default: false },
     paidAt: { type: Date },
 
     /* ---------- STATUT ---------- */
     statusCommande: {
       type: String,
-      enum: ["PENDING", "PARTIALLY_PAID", "PAID", "CONFIRMED", "DELIVERED"],
+      enum: ["PENDING", "PARTIALLY_PAID", "PAID", "CONFIRMED", "DELIVERED", "SHIPPED"],
       default: "PENDING",
     },
   },

@@ -43,7 +43,7 @@ const creerCommande = async (req, res) => {
           produitId: product._id,
           nom: product.title,
           prix: product.price,
-          image: product.images.find((img) => img.isMain)?.url || "", // image principale
+          image: product.images.find((img) => img.isMain)?.url || "",
           quantite: item.quantite,
           couleur: item.couleur,
           taille: item.taille,
@@ -542,30 +542,115 @@ const confirmerCommandeCOD = async (req, res) => {
 };
 
 const marquerCommeLivre = async (req, res) => {
+  const session = await Commandeapi.startSession();
+  session.startTransaction();
+
   try {
     const { id } = req.params;
 
-    const commande = await Commandeapi.findById(id);
+    const commande = await Commandeapi.findById(id).session(session);
     if (!commande)
       return res.status(404).json({ message: "Commande introuvable" });
 
-    commande.statusCommande = "DELIVERED";
-    await commande.save();
+    // 🔒 Sécurité
+    if (commande.modePaiement !== "cod") {
+      return res.status(400).json({ message: "Réservé aux commandes COD" });
+    }
 
+    // =======================
+    // 1. GESTION DU STOCK
+    // =======================
+    const produitIds = commande.panier.map((item) => item.produitId);
+    const produits = await Product.find({ _id: { $in: produitIds } }).session(
+      session,
+    );
+
+    const produitsMap = {};
+    produits.forEach((p) => (produitsMap[p._id.toString()] = p));
+
+    // Vérification stock
+    for (const item of commande.panier) {
+      const produit = produitsMap[item.produitId.toString()];
+      if (!produit) continue;
+
+      const couleur = item.couleur.toLowerCase();
+      const taille = item.taille.toLowerCase();
+
+      let colorMap = produit.stockParVariation.get(couleur) || new Map();
+      let stock = colorMap.get(taille) || 0;
+
+      if (stock < item.quantite) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          message: `Stock insuffisant pour ${item.nom}`,
+        });
+      }
+    }
+
+    // Décrément stock
+    for (const item of commande.panier) {
+      const produit = produitsMap[item.produitId.toString()];
+      if (!produit) continue;
+
+      const couleur = item.couleur.toLowerCase();
+      const taille = item.taille.toLowerCase();
+
+      let colorMap = produit.stockParVariation.get(couleur) || new Map();
+
+      let currentStock = colorMap.get(taille) || 0;
+      currentStock -= item.quantite;
+      if (currentStock < 0) currentStock = 0;
+
+      colorMap.set(taille, currentStock);
+      produit.stockParVariation.set(couleur, colorMap);
+      produit.markModified("stockParVariation");
+
+      produit.stock -= item.quantite;
+      if (produit.stock < 0) produit.stock = 0;
+
+      await produit.save({ session });
+    }
+
+    // =======================
+    // 2. STATUT + PAIEMENT
+    // =======================
+    commande.statusCommande = "DELIVERED";
+
+    // 🔥 IMPORTANT POUR TON COFFRE
+    commande.isPaid = true;
+    commande.paidAt = new Date();
+
+    await commande.save({ session });
+
+    // =======================
+    // 3. EMAIL (APRÈS SAVE)
+    // =======================
     const clientUser = await User.findById(commande.client.userId);
     const clientEmail = clientUser?.email;
 
-    if (clientEmail) {
-      await sendOrderDeliveredEmail(
-        clientEmail,
-        commande._id,
-        clientUser?.username || "Client",
-      );
-      console.log("✅ Email commande livrée envoyé");
+    try {
+      if (clientEmail) {
+        await sendOrderDeliveredEmail(
+          clientEmail,
+          commande._id,
+          clientUser?.username || "Client",
+        );
+        console.log("✅ Email commande livrée envoyé");
+      }
+    } catch (emailErr) {
+      console.error("❌ Erreur envoi email :", emailErr);
     }
 
-    res.json({ message: "Commande marquée comme livrée", commande });
+    await session.commitTransaction();
+    session.endSession();
+
+    res.json({
+      message: "Commande livrée + stock mis à jour + paiement validé",
+      commande,
+    });
   } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
     console.error(err);
     res.status(500).json({ message: "Erreur serveur" });
   }

@@ -144,11 +144,11 @@ const CommandeSchema = new mongoose.Schema(
     },
 
     /* ---------- CONFIG PAIEMENT ---------- */
- modePaiement: {
-  type: String,
-  enum: ["full", "installments", "cod"],
-  default: "full",
-},
+    modePaiement: {
+      type: String,
+      enum: ["full", "installments", "cod"],
+      default: "full",
+    },
 
     servicePaiement: {
       type: String,
@@ -166,6 +166,9 @@ const CommandeSchema = new mongoose.Schema(
       type: [PaiementRecuSchema],
       default: [],
     },
+    
+    isPaid: { type: Boolean, default: false },
+    paidAt: { type: Date },
 
     /* ---------- STATUT ---------- */
     statusCommande: {

@@ -24,7 +24,15 @@ res.cookie("marketingConsent", String(marketingConsent), {
 
 // GET : récupérer le consentement marketing
 router.get("/consent", (req, res) => {
-  const marketingConsent = req.cookies.marketingConsent === "true";
+  const cookie = req.cookies.marketingConsent;
+  console.log("COOKIES RECEIVED:", req.cookies);
+
+  const marketingConsent =
+    cookie === true ||
+    cookie === "true" ||
+    cookie === 1 ||
+    cookie === "1";
+
   res.status(200).json({ marketingConsent });
 });
 

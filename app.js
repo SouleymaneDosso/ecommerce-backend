@@ -55,19 +55,6 @@ app.use(
   })
 );
 
-app.options("*", cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(null, false);
-  },
-  credentials: true
-}));
-
 // Body parsers - augmenter la limite pour gros panier ou images
 
 app.use(express.json({ limit: "10mb" })); // 10 MB

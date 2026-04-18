@@ -4,7 +4,7 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const app = express();
-
+app.set("trust proxy", 1);
 // ===============================
 // ROUTES
 // ===============================
@@ -43,20 +43,25 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Autorise les requêtes serveur à serveur (pas de origin)
       if (!origin) return callback(null, true);
 
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
-      } else {
-        return callback(new Error("Not allowed by CORS"));
       }
+
+      return callback(null, false);
     },
     credentials: true,
   })
 );
 
+app.options("*", cors({
+  origin: allowedOrigins,
+  credentials: true
+}));
+
 // Body parsers - augmenter la limite pour gros panier ou images
+
 app.use(express.json({ limit: "10mb" })); // 10 MB
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());

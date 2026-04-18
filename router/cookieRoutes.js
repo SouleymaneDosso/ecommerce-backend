@@ -12,12 +12,14 @@ router.post("/consent", (req, res) => {
 
   // ⚡ Cookie configuré pour cross-domain + React
 res.cookie("marketingConsent", String(marketingConsent), {
-    maxAge: 365 * 24 * 60 * 60 * 1000, // 1 an
-    path: "/",             // accessible sur tout le site
-    httpOnly: false,       // React peut lire le cookie
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    secure: process.env.NODE_ENV === "production", // HTTPS obligatoire en prod
-  });
+  maxAge: 365 * 24 * 60 * 60 * 1000,
+  path: "/",
+  httpOnly: false,
+  sameSite: "none",
+  secure: true,
+
+  domain: ".numa.luxe" 
+});
 
   res.status(200).json({ message: "Consentement enregistré ✅" });
 });

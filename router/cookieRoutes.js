@@ -16,9 +16,7 @@ res.cookie("marketingConsent", String(marketingConsent), {
   path: "/",
   httpOnly: false,
   sameSite: "none",
-  secure: true,
-
-  domain: ".numa.luxe" 
+  secure: true, 
 });
 
   res.status(200).json({ message: "Consentement enregistré ✅" });

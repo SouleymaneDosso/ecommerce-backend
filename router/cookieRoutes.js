@@ -27,11 +27,7 @@ router.get("/consent", (req, res) => {
   const cookie = req.cookies.marketingConsent;
   console.log("COOKIES RECEIVED:", req.cookies);
 
-  const marketingConsent =
-    cookie === true ||
-    cookie === "true" ||
-    cookie === 1 ||
-    cookie === "1";
+const marketingConsent = cookie === "true";
 
   res.status(200).json({ marketingConsent });
 });

@@ -63,7 +63,7 @@ exports.login = async (req, res) => {
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET_CLIENT, { expiresIn: "7d" });
 
-    // ⚠️ Cookie sécurisé
+    
     res.cookie("token", token, {
       httpOnly: true,
       secure: true,

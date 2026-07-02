@@ -5,8 +5,13 @@ const cloudinary = require("../config/cloudinary");
    HELPERS
 ================================ */
 const safeParse = (value, fallback) => {
+  if (!value) return fallback;
+
+  // si déjà objet JS (cas important)
+  if (typeof value === "object") return value;
+
   try {
-    return value ? JSON.parse(value) : fallback;
+    return JSON.parse(value);
   } catch {
     return fallback;
   }

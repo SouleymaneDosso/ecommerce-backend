@@ -30,11 +30,10 @@ const schemaproduits = new mongoose.Schema(
     couleurs: { type: [String], default: [] },
     averageRating: { type: Number, default: 0 },
 
-    stockParVariation: {
-      type: Map,
-      of: { type: Map, of: Number },
-      default: {},
-    },
+   stockParVariation: {
+  type: Object,
+  default: {}
+},
 
     commentaires: {
       type: [

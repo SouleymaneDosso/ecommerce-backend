@@ -68,6 +68,7 @@ const creerCommande = async (req, res) => {
       paiementsRecus: [],
       statusCommande: "PENDING",
       username: client.username || "Client",
+      numero: client.numero || 0,
     });
 
     // Créer les étapes de paiement

@@ -18,6 +18,7 @@ const userRoutes = require("./router/userRoutes");
 const resetPassword = require("./router/authRoutes")
 const  newsletterRoute = require("./router/newsletter")
 const cookieRoutes = require("./router/cookieRoutes");
+const videoRoutes = require("./router/video");
 // ===============================
 // DATABASE
 // ===============================
@@ -73,6 +74,7 @@ app.use("/api/produits", produitsClient);
 app.use("/api/favorites", favorites);
 app.use("/api/newsletter", newsletterRoute);
 app.use("/api/cookies", cookieRoutes);
+app.use("/api/videos", videoRoutes);
 
 // ===============================
 // GESTION ERREURS

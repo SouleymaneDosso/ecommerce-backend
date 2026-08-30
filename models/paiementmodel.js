@@ -143,6 +143,33 @@ const CommandeSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    /* ---------- LIVRAISON ---------- */
+livraison: {
+  livreurId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Livreur",
+    default: null,
+  },
+
+  prixTrajet: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
+
+  prixChoisiParLivreur: {
+    type: Boolean,
+    default: false,
+  },
+
+  assigneeAt: {
+    type: Date,
+  },
+
+  prixTrajetChoisiAt: {
+    type: Date,
+  },
+},
 
     /* ---------- CONFIG PAIEMENT ---------- */
     modePaiement: {

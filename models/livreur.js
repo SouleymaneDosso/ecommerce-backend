@@ -90,17 +90,6 @@ const livreurSchema = new mongoose.Schema(
 );
 
 /* =========================
-   HASH PASSWORD
-   ========================= */
-
-livreurSchema.pre("save", async function () {
-  // Ne pas re-hasher si le mot de passe n'a pas changé
-  if (!this.isModified("password")) return;
-
-  this.password = await bcrypt.hash(this.password, 10);
-});
-
-/* =========================
    COMPARER PASSWORD
    ========================= */
 

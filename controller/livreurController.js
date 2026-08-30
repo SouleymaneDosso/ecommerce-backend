@@ -25,10 +25,12 @@ exports.signup = async (req, res) => {
       });
     }
 
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     const livreur = await Livreur.create({
       username,
       email,
-      password,
+      password: hashedPassword,
       telephone,
     });
 
@@ -52,6 +54,7 @@ exports.signup = async (req, res) => {
     });
   }
 };
+
 
 
 // ===============================

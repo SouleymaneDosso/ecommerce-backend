@@ -90,11 +90,10 @@ exports.login = async (req, res) => {
     }
 
     // Comparer le mot de passe avec le hash enregistré
-     const comparaison = await bcrypt.compare(req.body.password, livreur.password);
-   
+    const passwordCorrect = await livreur.comparePassword(password);
 
     // Mauvais mot de passe
-    if (!comparaison) {
+    if (!passwordCorrect) {
       return res.status(401).json({
         message: "Identifiant ou mot de passe incorrect",
       });

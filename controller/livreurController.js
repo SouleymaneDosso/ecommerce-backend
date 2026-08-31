@@ -437,3 +437,198 @@ exports.commandesDisponibles = async (req, res) => {
     });
   }
 };
+
+// ===============================
+// COMMENCER LA RÉCUPÉRATION
+// ACCEPTED → PICKING_UP
+// ===============================
+exports.commencerRecuperation = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const commande = await Commandeapi.findById(id);
+
+    if (!commande) {
+      return res.status(404).json({
+        message: "Commande introuvable",
+      });
+    }
+
+    if (
+      !commande.livraison?.livreurId ||
+      commande.livraison.livreurId.toString() !==
+        req.livreur._id.toString()
+    ) {
+      return res.status(403).json({
+        message: "Cette commande ne vous est pas attribuée",
+      });
+    }
+
+    if (commande.livraison.statut !== "ACCEPTED") {
+      return res.status(400).json({
+        message: "La commande ne peut pas commencer la récupération",
+        statut: commande.livraison.statut,
+      });
+    }
+
+    commande.livraison.statut = "PICKING_UP";
+
+    await commande.save();
+
+    const io = req.app.get("io");
+
+    if (io) {
+      io.to(commande.client.userId.toString()).emit(
+        "commande_update",
+        {
+          id: commande._id,
+          statutLivraison: "PICKING_UP",
+        }
+      );
+    }
+
+    return res.status(200).json({
+      message: "Récupération de la commande commencée",
+      commande,
+    });
+  } catch (error) {
+    console.error("COMMENCER RECUPERATION ERROR:", error);
+
+    return res.status(500).json({
+      message: "Erreur serveur",
+    });
+  }
+};
+
+
+// ===============================
+// COMMANDE RÉCUPÉRÉE
+// PICKING_UP → IN_DELIVERY
+// ===============================
+exports.recupererCommande = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const commande = await Commandeapi.findById(id);
+
+    if (!commande) {
+      return res.status(404).json({
+        message: "Commande introuvable",
+      });
+    }
+
+    if (
+      !commande.livraison?.livreurId ||
+      commande.livraison.livreurId.toString() !==
+        req.livreur._id.toString()
+    ) {
+      return res.status(403).json({
+        message: "Cette commande ne vous est pas attribuée",
+      });
+    }
+
+    if (commande.livraison.statut !== "PICKING_UP") {
+      return res.status(400).json({
+        message: "La commande n'est pas en cours de récupération",
+        statut: commande.livraison.statut,
+      });
+    }
+
+    commande.livraison.statut = "IN_DELIVERY";
+
+    await commande.save();
+
+    const io = req.app.get("io");
+
+    if (io) {
+      io.to(commande.client.userId.toString()).emit(
+        "commande_update",
+        {
+          id: commande._id,
+          statutLivraison: "IN_DELIVERY",
+        }
+      );
+    }
+
+    return res.status(200).json({
+      message: "Commande récupérée",
+      commande,
+    });
+  } catch (error) {
+    console.error("RECUPERER COMMANDE ERROR:", error);
+
+    return res.status(500).json({
+      message: "Erreur serveur",
+    });
+  }
+};
+
+
+// ===============================
+// LIVRER LA COMMANDE
+// IN_DELIVERY → DELIVERED
+// ===============================
+exports.livrerCommande = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const commande = await Commandeapi.findById(id);
+
+    if (!commande) {
+      return res.status(404).json({
+        message: "Commande introuvable",
+      });
+    }
+
+    if (
+      !commande.livraison?.livreurId ||
+      commande.livraison.livreurId.toString() !==
+        req.livreur._id.toString()
+    ) {
+      return res.status(403).json({
+        message: "Cette commande ne vous est pas attribuée",
+      });
+    }
+
+    if (commande.livraison.statut !== "IN_DELIVERY") {
+      return res.status(400).json({
+        message: "Cette commande n'est pas en cours de livraison",
+        statut: commande.livraison.statut,
+      });
+    }
+
+    commande.livraison.statut = "DELIVERED";
+    commande.livraison.livreAt = new Date();
+
+    // Libérer le livreur
+    req.livreur.commandeActuelle = null;
+    req.livreur.statut = "AVAILABLE";
+
+    await commande.save();
+    await req.livreur.save();
+
+    const io = req.app.get("io");
+
+    if (io) {
+      io.to(commande.client.userId.toString()).emit(
+        "commande_update",
+        {
+          id: commande._id,
+          statutLivraison: "DELIVERED",
+          livreurId: req.livreur._id,
+        }
+      );
+    }
+
+    return res.status(200).json({
+      message: "Commande livrée avec succès",
+      commande,
+    });
+  } catch (error) {
+    console.error("LIVRER COMMANDE ERROR:", error);
+
+    return res.status(500).json({
+      message: "Erreur serveur",
+    });
+  }
+};

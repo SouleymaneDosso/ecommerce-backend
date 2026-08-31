@@ -72,4 +72,23 @@ router.get(
   authLivreur,
   livreurController.commandesDisponibles
 );
+
+router.put(
+  "/commandes/:id/commencer-recuperation",
+  authLivreur,
+  livreurController.commencerRecuperation
+);
+
+router.put(
+  "/commandes/:id/recuperer",
+  authLivreur,
+  livreurController.recupererCommande
+);
+
+router.put(
+  "/commandes/:id/livrer",
+  authLivreur,
+  livreurController.livrerCommande
+);
+
 module.exports = router;

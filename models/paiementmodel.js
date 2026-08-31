@@ -143,7 +143,7 @@ const CommandeSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-    /* ---------- LIVRAISON ---------- */
+    
 /* ---------- LIVRAISON ---------- */
 livraison: {
   livreurId: {

@@ -25,109 +25,198 @@ const creerCommande = async (req, res) => {
       panier,
       modePaiement,
       servicePaiement,
-      fraisLivraison,
-      total,
     } = req.body;
 
-    if (!client || !panier) {
-      return res.status(400).json({ message: "Champs requis manquants" });
+    if (!client || !panier || !Array.isArray(panier) || panier.length === 0) {
+      return res.status(400).json({
+        message: "Client et panier requis",
+      });
     }
 
-    // Créer snapshot du panier
+    // ==========================================
+    // 1. CRÉER LE SNAPSHOT DU PANIER
+    // ==========================================
+
     const panierSnapshot = await Promise.all(
       panier.map(async (item) => {
         const product = await Product.findById(item.produitId);
-        if (!product) throw new Error(`Produit introuvable: ${item.produitId}`);
+
+        if (!product) {
+          throw new Error(
+            `Produit introuvable: ${item.produitId}`,
+          );
+        }
+
+        const quantite = Number(item.quantite);
+
+        if (!quantite || quantite <= 0) {
+          throw new Error(
+            `Quantité invalide pour le produit ${product.title}`,
+          );
+        }
 
         return {
           produitId: product._id,
           nom: product.title,
-          prix: product.price,
-          image: product.images.find((img) => img.isMain)?.url || "",
-          quantite: item.quantite,
+          prix: Number(product.price),
+          image:
+            product.images?.find((img) => img.isMain)?.url || "",
+          quantite,
           couleur: item.couleur,
           taille: item.taille,
         };
       }),
     );
 
-    // Calcul du total depuis les produits pour éviter incohérences
-    const totalCalculated = panierSnapshot.reduce(
-      (acc, item) => acc + item.prix * item.quantite,
+    // ==========================================
+    // 2. CALCUL DU TOTAL DES PRODUITS
+    // ==========================================
+
+    const totalProduits = panierSnapshot.reduce(
+      (acc, item) =>
+        acc + Number(item.prix) * Number(item.quantite),
       0,
     );
 
+    // ==========================================
+    // 3. AU DÉPART : PAS DE FRAIS DE LIVRAISON
+    // ==========================================
+
+    const fraisLivraison = 0;
+
+    const total = totalProduits;
+
+    // ==========================================
+    // 4. CRÉER LA COMMANDE
+    // ==========================================
+
     const nouvelleCommande = new Commandeapi({
-      client: { userId: req.auth.userId, ...client },
+      client: {
+        userId: req.auth.userId,
+        ...client,
+      },
+
       panier: panierSnapshot,
-      total: totalCalculated + (fraisLivraison || 0),
-      fraisLivraison: fraisLivraison || 0,
+
+      // IMPORTANT
+      totalProduits,
+      fraisLivraison,
+      total,
+
       modePaiement,
-      servicePaiement: modePaiement === "cod" ? "livraison" : servicePaiement,
+
+      servicePaiement:
+        modePaiement === "cod"
+          ? "livraison"
+          : servicePaiement,
+
       paiements: [],
       paiementsRecus: [],
+
       statusCommande: "PENDING",
+
       username: client.username || "Client",
       numero: client.numero || 0,
     });
 
-    // Créer les étapes de paiement
-    // 🔥 Calcul final sécurisé
-    const totalFinal = totalCalculated + (fraisLivraison || 0);
+    // ==========================================
+    // 5. CRÉER LES ÉTAPES DE PAIEMENT
+    // ==========================================
 
-    // Créer les étapes de paiement
     if (modePaiement === "cod") {
       nouvelleCommande.paiements = [];
+
       nouvelleCommande.statusCommande = "PENDING";
-    } else if (modePaiement === "installments") {
-      const montantParEtape = Math.ceil(totalFinal / 3);
+    }
+
+    else if (modePaiement === "installments") {
+      const montantParEtape = Math.ceil(total / 3);
 
       for (let i = 1; i <= 3; i++) {
         let montant = montantParEtape;
 
         if (i === 3) {
-          montant = totalFinal - montantParEtape * 2;
+          montant = total - montantParEtape * 2;
         }
 
         nouvelleCommande.paiements.push({
           step: i,
           amountExpected: montant,
           status: "UNPAID",
-          reference: generateReference(nouvelleCommande._id, i),
+          reference: generateReference(
+            nouvelleCommande._id,
+            i,
+          ),
         });
       }
-    } else {
+    }
+
+    else {
       nouvelleCommande.paiements.push({
         step: 1,
-        amountExpected: totalFinal,
+        amountExpected: total,
         status: "UNPAID",
-        reference: generateReference(nouvelleCommande._id, 1),
+        reference: generateReference(
+          nouvelleCommande._id,
+          1,
+        ),
       });
     }
+
+    // ==========================================
+    // 6. SAUVEGARDER
+    // ==========================================
+
     await nouvelleCommande.save();
 
-    const user = await User.findById(req.auth.userId);
-    const clientEmail = user.email;
+    // ==========================================
+    // 7. EMAIL
+    // ==========================================
 
-    try {
-      await sendNewOrderEmail(clientEmail, nouvelleCommande);
-      console.log("✅ Email nouvelle commande envoyé");
-    } catch (err) {
-      console.error("❌ Erreur envoi email nouvelle commande:", err);
+    const user = await User.findById(req.auth.userId);
+
+    if (user?.email) {
+      try {
+        await sendNewOrderEmail(
+          user.email,
+          nouvelleCommande,
+        );
+
+        console.log(
+          "✅ Email nouvelle commande envoyé",
+        );
+      } catch (err) {
+        console.error(
+          "❌ Erreur envoi email nouvelle commande:",
+          err,
+        );
+      }
     }
 
-    res.status(201).json({
+    // ==========================================
+    // 8. RÉPONSE
+    // ==========================================
+
+    return res.status(201).json({
       message: "Commande créée avec succès",
+
       commande: nouvelleCommande,
     });
+
   } catch (err) {
-    console.error(err);
-    res.status(500).json({
+    console.error(
+      "CREATION COMMANDE ERROR:",
+      err,
+    );
+
+    return res.status(500).json({
       message: "Erreur lors de la création de la commande",
       error: err.message,
     });
   }
 };
+
+
 
 /* =========================
    GET COMMANDE PAR ID

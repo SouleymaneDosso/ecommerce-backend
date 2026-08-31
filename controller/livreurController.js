@@ -396,7 +396,17 @@ exports.rechercherLivreur = async (req, res) => {
         statut: commande.livraison.statut,
       });
     }
-
+if (
+  commande.totalProduits === undefined ||
+  commande.totalProduits === null
+) {
+  commande.totalProduits = commande.panier.reduce(
+    (total, item) =>
+      total +
+      Number(item.prix || 0) * Number(item.quantite || 0),
+    0
+  );
+}
     // Lancer la recherche
     commande.livraison.statut = "SEARCHING";
 

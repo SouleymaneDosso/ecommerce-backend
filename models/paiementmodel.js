@@ -144,6 +144,7 @@ const CommandeSchema = new mongoose.Schema(
       default: 0,
     },
     /* ---------- LIVRAISON ---------- */
+/* ---------- LIVRAISON ---------- */
 livraison: {
   livreurId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -164,13 +165,44 @@ livraison: {
 
   assigneeAt: {
     type: Date,
+    default: null,
   },
 
   prixTrajetChoisiAt: {
     type: Date,
+    default: null,
+  },
+
+  accepteAt: {
+    type: Date,
+    default: null,
+  },
+
+  livreAt: {
+    type: Date,
+    default: null,
+  },
+
+  statut: {
+    type: String,
+    enum: [
+      "NOT_STARTED",
+      "SEARCHING",
+      "REQUESTED",
+      "ACCEPTED",
+      "PICKING_UP",
+      "IN_DELIVERY",
+      "DELIVERED",
+      "CANCELLED",
+    ],
+    default: "NOT_STARTED",
   },
 },
 
+totalProduits: {
+  type: Number,
+  required: true,
+},
     /* ---------- CONFIG PAIEMENT ---------- */
     modePaiement: {
       type: String,

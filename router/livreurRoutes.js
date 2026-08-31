@@ -3,45 +3,66 @@ const express = require("express");
 const router = express.Router();
 
 const authLivreur = require("../authentification/authLivreur");
+const authClient = require("../authentification/authClient");
 
-const loginController = require("../controller/livreurController");
+const livreurController = require("../controller/livreurController");
 
 // ===============================
-// ROUTES LIVREUR
+// INSCRIPTION
 // ===============================
 
-// Inscription livreur
-router.post("/signup",  loginController.signup);
+router.post("/signup", livreurController.signup);
 
-// Connexion livreur
-router.post("/login", loginController.login);
+// ===============================
+// CONNEXION
+// ===============================
 
-/* =========================
-   TEST AUTHENTIFICATION LIVREUR
-   ========================= */
+router.post("/login", livreurController.login);
 
-router.get("/profil", authLivreur, async (req, res) => {
-  try {
-    res.status(200).json({
-      message: "Authentification livreur réussie",
-      livreur: {
-        id: req.livreur._id,
-        username: req.livreur.username,
-        email: req.livreur.email,
-        telephone: req.livreur.telephone,
-        actif: req.livreur.actif,
-        statut: req.livreur.statut,
-        localisation: req.livreur.localisation,
-        commandeActuelle: req.livreur.commandeActuelle,
-      },
-    });
-  } catch (error) {
-    console.error("PROFIL LIVREUR ERROR:", error);
+// ===============================
+// PROFIL
+// ===============================
 
-    res.status(500).json({
-      message: "Erreur serveur",
-    });
-  }
-});
+router.get("/profil", authLivreur, livreurController.profil);
 
+// ===============================
+// STATUT
+// ===============================
+
+router.put("/statut", authLivreur, livreurController.changerStatut);
+
+// ===============================
+// LOCALISATION GPS
+// ===============================
+
+router.put(
+  "/localisation",
+  authLivreur,
+  livreurController.mettreAJourLocalisation,
+);
+
+// ===============================
+// MES COMMANDES
+// ===============================
+
+router.get("/commandes", authLivreur, livreurController.mesCommandes);
+
+// ===============================
+// ACCEPTER COMMANDE
+// ===============================
+
+router.put(
+  "/commandes/:id/accepter",
+  authLivreur,
+  livreurController.accepterCommande,
+);
+
+// ===============================
+// chercher un livreur
+// ===============================
+router.put(
+  "/commande/:id/rechercher-livreur",
+  authClient,
+  livreurController.rechercherLivreur,
+);
 module.exports = router;

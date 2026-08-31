@@ -56,8 +56,6 @@ exports.signup = async (req, res) => {
   }
 };
 
-
-
 // ===============================
 // CONNEXION LIVREUR
 // ===============================
@@ -135,7 +133,6 @@ exports.login = async (req, res) => {
   }
 };
 
-
 // ===============================
 // PROFIL LIVREUR
 // ===============================
@@ -165,7 +162,6 @@ exports.profil = async (req, res) => {
   }
 };
 
-
 // ===============================
 // CHANGER STATUT LIVREUR
 // ===============================
@@ -173,11 +169,7 @@ exports.changerStatut = async (req, res) => {
   try {
     const { statut } = req.body;
 
-    const statutsAutorises = [
-      "OFFLINE",
-      "AVAILABLE",
-      "BUSY",
-    ];
+    const statutsAutorises = ["OFFLINE", "AVAILABLE", "BUSY"];
 
     if (!statutsAutorises.includes(statut)) {
       return res.status(400).json({
@@ -217,10 +209,7 @@ exports.mettreAJourLocalisation = async (req, res) => {
   try {
     const { latitude, longitude } = req.body;
 
-    if (
-      latitude === undefined ||
-      longitude === undefined
-    ) {
+    if (latitude === undefined || longitude === undefined) {
       return res.status(400).json({
         message: "Latitude et longitude requises",
       });
@@ -261,7 +250,7 @@ exports.mettreAJourLocalisation = async (req, res) => {
 exports.mesCommandes = async (req, res) => {
   try {
     const commandes = await Commandeapi.find({
-      livreur: req.livreur._id,
+      "livraison.livreurId": req.livreur._id,
     })
       .sort({ createdAt: -1 })
       .lean();
@@ -296,8 +285,7 @@ exports.accepterCommande = async (req, res) => {
     // Vérifier que la commande est bien attribuée à ce livreur
     if (
       !commande.livraison?.livreurId ||
-      commande.livraison.livreurId.toString() !==
-        req.livreur._id.toString()
+      commande.livraison.livreurId.toString() !== req.livreur._id.toString()
     ) {
       return res.status(403).json({
         message: "Cette commande ne vous est pas attribuée",
@@ -339,21 +327,17 @@ exports.accepterCommande = async (req, res) => {
     const io = req.app.get("io");
 
     if (io) {
-      io.to(commande.client.userId.toString()).emit(
-        "commande_update",
-        {
-          id: commande._id,
-          statutLivraison: "ACCEPTED",
-          livreurId: req.livreur._id,
-        }
-      );
+      io.to(commande.client.userId.toString()).emit("commande_update", {
+        id: commande._id,
+        statutLivraison: "ACCEPTED",
+        livreurId: req.livreur._id,
+      });
     }
 
     res.status(200).json({
       message: "Commande acceptée",
       commande,
     });
-
   } catch (error) {
     console.error("ACCEPTER COMMANDE ERROR:", error);
 
@@ -362,7 +346,6 @@ exports.accepterCommande = async (req, res) => {
     });
   }
 };
-
 
 // ===============================
 // LANCER LA RECHERCHE D'UN LIVREUR
@@ -380,10 +363,7 @@ exports.rechercherLivreur = async (req, res) => {
     }
 
     // Vérifier que la commande appartient bien au client connecté
-    if (
-      commande.client.userId.toString() !==
-      req.auth.userId.toString()
-    ) {
+    if (commande.client.userId.toString() !== req.auth.userId.toString()) {
       return res.status(403).json({
         message: "Cette commande ne vous appartient pas",
       });
@@ -396,17 +376,16 @@ exports.rechercherLivreur = async (req, res) => {
         statut: commande.livraison.statut,
       });
     }
-if (
-  commande.totalProduits === undefined ||
-  commande.totalProduits === null
-) {
-  commande.totalProduits = commande.panier.reduce(
-    (total, item) =>
-      total +
-      Number(item.prix || 0) * Number(item.quantite || 0),
-    0
-  );
-}
+    if (
+      commande.totalProduits === undefined ||
+      commande.totalProduits === null
+    ) {
+      commande.totalProduits = commande.panier.reduce(
+        (total, item) =>
+          total + Number(item.prix || 0) * Number(item.quantite || 0),
+        0,
+      );
+    }
     // Lancer la recherche
     commande.livraison.statut = "SEARCHING";
 
@@ -429,7 +408,6 @@ if (
       message: "Recherche de livreur lancée",
       commande,
     });
-
   } catch (error) {
     console.error("RECHERCHE LIVREUR ERROR:", error);
 
@@ -439,3 +417,23 @@ if (
   }
 };
 
+
+exports.commandesDisponibles = async (req, res) => {
+  try {
+    const commandes = await Commandeapi.find({
+      "livraison.statut": "SEARCHING",
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.status(200).json({
+      commandes,
+    });
+  } catch (error) {
+    console.error("COMMANDES DISPONIBLES ERROR:", error);
+
+    res.status(500).json({
+      message: "Erreur serveur",
+    });
+  }
+};

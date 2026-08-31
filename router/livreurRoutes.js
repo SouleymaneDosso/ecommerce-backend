@@ -65,4 +65,11 @@ router.put(
   authClient,
   livreurController.rechercherLivreur,
 );
+
+
+router.get(
+  "/commandes-disponibles",
+  authLivreur,
+  livreurController.commandesDisponibles
+);
 module.exports = router;

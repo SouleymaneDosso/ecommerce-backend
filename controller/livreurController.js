@@ -203,15 +203,31 @@ exports.changerStatut = async (req, res) => {
 };
 
 // ===============================
-// METTRE À JOUR LOCALISATION
+// METTRE À JOUR LOCALISATION GPS
 // ===============================
 exports.mettreAJourLocalisation = async (req, res) => {
   try {
     const { latitude, longitude } = req.body;
 
-    if (latitude === undefined || longitude === undefined) {
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+
+    // Vérification
+    if (
+      latitude === undefined ||
+      longitude === undefined ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng)
+    ) {
       return res.status(400).json({
-        message: "Latitude et longitude requises",
+        message: "Latitude et longitude valides requises",
+      });
+    }
+
+    // Vérification coordonnées
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      return res.status(400).json({
+        message: "Coordonnées GPS invalides",
       });
     }
 
@@ -223,22 +239,49 @@ exports.mettreAJourLocalisation = async (req, res) => {
       });
     }
 
+    // ==================================================
+    // SAUVEGARDE GPS
+    // ==================================================
+
+    const maintenant = new Date();
+
     livreur.localisation = {
-      latitude: Number(latitude),
-      longitude: Number(longitude),
-      derniereMiseAJour: new Date(),
+      latitude: lat,
+      longitude: lng,
+      derniereMiseAJour: maintenant,
     };
 
     await livreur.save();
 
-    res.status(200).json({
+    // ==================================================
+    // DIFFUSION TEMPS RÉEL
+    // ==================================================
+
+    const io = req.app.get("io");
+
+    if (io && livreur.commandeActuelle) {
+      io.to(`commande:${livreur.commandeActuelle}`).emit("livreur_position", {
+        commandeId: livreur.commandeActuelle.toString(),
+
+        livreurId: livreur._id.toString(),
+
+        latitude: lat,
+
+        longitude: lng,
+
+        derniereMiseAJour: maintenant,
+      });
+    }
+
+    return res.status(200).json({
       message: "Localisation mise à jour",
+
       localisation: livreur.localisation,
     });
   } catch (error) {
     console.error("GPS LIVREUR ERROR:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Erreur serveur",
     });
   }
@@ -345,29 +388,52 @@ exports.accepterCommande = async (req, res) => {
 
     await livreur.save();
 
-    // ==========================================
-    // NOTIFICATION CLIENT
-    // ==========================================
+    // ======================================================
+    // NOTIFICATION CLIENT + ROOM COMMANDE
+    // ======================================================
 
     const io = req.app.get("io");
 
     if (io && commande.client?.userId) {
-      io.to(commande.client.userId.toString()).emit(
-        "commande_update",
-        {
-          id: commande._id,
-          statutLivraison: "ACCEPTED",
+      const clientId = commande.client.userId.toString();
 
-          livreurId: livreur._id,
+      // Notification personnelle du client
+      io.to(`user:${clientId}`).emit("commande_update", {
+        id: commande._id.toString(),
 
-          livreur: {
-            id: livreur._id,
-            username: livreur.username,
-            telephone: livreur.telephone,
-            localisation: livreur.localisation,
-          },
+        statutLivraison: "ACCEPTED",
+
+        livreurId: livreur._id.toString(),
+
+        livreur: {
+          id: livreur._id.toString(),
+
+          username: livreur.username,
+
+          telephone: livreur.telephone,
+
+          localisation: livreur.localisation,
         },
-      );
+      });
+
+      // Notification dans la room de la commande
+      io.to(`commande:${commande._id}`).emit("commande_update", {
+        id: commande._id.toString(),
+
+        statutLivraison: "ACCEPTED",
+
+        livreurId: livreur._id.toString(),
+
+        livreur: {
+          id: livreur._id.toString(),
+
+          username: livreur.username,
+
+          telephone: livreur.telephone,
+
+          localisation: livreur.localisation,
+        },
+      });
     }
 
     return res.status(200).json({
@@ -477,7 +543,6 @@ exports.commandesDisponibles = async (req, res) => {
   }
 };
 
-
 // ===============================
 // COMMENCER LA RÉCUPÉRATION
 // ACCEPTED → PICKING_UP
@@ -496,8 +561,7 @@ exports.commencerRecuperation = async (req, res) => {
 
     if (
       !commande.livraison?.livreurId ||
-      commande.livraison.livreurId.toString() !==
-        req.livreur._id.toString()
+      commande.livraison.livreurId.toString() !== req.livreur._id.toString()
     ) {
       return res.status(403).json({
         message: "Cette commande ne vous est pas attribuée",
@@ -517,15 +581,26 @@ exports.commencerRecuperation = async (req, res) => {
 
     const io = req.app.get("io");
 
-    if (io) {
-      io.to(commande.client.userId.toString()).emit(
-        "commande_update",
-        {
-          id: commande._id,
-          statutLivraison: "PICKING_UP",
-        }
-      );
-    }
+
+if (io && commande.client?.userId) {
+  io.to(`user:${commande.client.userId}`).emit(
+    "commande_update",
+    {
+      id: commande._id.toString(),
+      statutLivraison: "PICKING_UP",
+    },
+  );
+
+  io.to(`commande:${commande._id}`).emit(
+    "commande_update",
+    {
+      id: commande._id.toString(),
+      statutLivraison: "PICKING_UP",
+    },
+  );
+}
+
+
 
     return res.status(200).json({
       message: "Récupération de la commande commencée",
@@ -539,7 +614,6 @@ exports.commencerRecuperation = async (req, res) => {
     });
   }
 };
-
 
 // ===============================
 // COMMANDE RÉCUPÉRÉE
@@ -559,8 +633,7 @@ exports.recupererCommande = async (req, res) => {
 
     if (
       !commande.livraison?.livreurId ||
-      commande.livraison.livreurId.toString() !==
-        req.livreur._id.toString()
+      commande.livraison.livreurId.toString() !== req.livreur._id.toString()
     ) {
       return res.status(403).json({
         message: "Cette commande ne vous est pas attribuée",
@@ -580,15 +653,26 @@ exports.recupererCommande = async (req, res) => {
 
     const io = req.app.get("io");
 
-    if (io) {
-      io.to(commande.client.userId.toString()).emit(
-        "commande_update",
-        {
-          id: commande._id,
-          statutLivraison: "IN_DELIVERY",
-        }
-      );
-    }
+ 
+if (io && commande.client?.userId) {
+  io.to(`user:${commande.client.userId}`).emit(
+    "commande_update",
+    {
+      id: commande._id.toString(),
+      statutLivraison: "IN_DELIVERY",
+    },
+  );
+
+  io.to(`commande:${commande._id}`).emit(
+    "commande_update",
+    {
+      id: commande._id.toString(),
+      statutLivraison: "IN_DELIVERY",
+    },
+  );
+}
+
+
 
     return res.status(200).json({
       message: "Commande récupérée",
@@ -602,7 +686,6 @@ exports.recupererCommande = async (req, res) => {
     });
   }
 };
-
 
 // ===============================
 // LIVRER LA COMMANDE
@@ -622,8 +705,7 @@ exports.livrerCommande = async (req, res) => {
 
     if (
       !commande.livraison?.livreurId ||
-      commande.livraison.livreurId.toString() !==
-        req.livreur._id.toString()
+      commande.livraison.livreurId.toString() !== req.livreur._id.toString()
     ) {
       return res.status(403).json({
         message: "Cette commande ne vous est pas attribuée",
@@ -649,16 +731,32 @@ exports.livrerCommande = async (req, res) => {
 
     const io = req.app.get("io");
 
-    if (io) {
-      io.to(commande.client.userId.toString()).emit(
-        "commande_update",
-        {
-          id: commande._id,
-          statutLivraison: "DELIVERED",
-          livreurId: req.livreur._id,
-        }
-      );
-    }
+
+if (io && commande.client?.userId) {
+  io.to(`user:${commande.client.userId}`).emit(
+    "commande_update",
+    {
+      id: commande._id.toString(),
+
+      statutLivraison: "DELIVERED",
+
+      livreurId: req.livreur._id.toString(),
+    },
+  );
+
+  io.to(`commande:${commande._id}`).emit(
+    "commande_update",
+    {
+      id: commande._id.toString(),
+
+      statutLivraison: "DELIVERED",
+
+      livreurId: req.livreur._id.toString(),
+    },
+  );
+}
+
+
 
     return res.status(200).json({
       message: "Commande livrée avec succès",

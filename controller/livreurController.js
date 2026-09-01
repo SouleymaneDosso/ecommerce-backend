@@ -283,14 +283,116 @@ exports.accepterCommande = async (req, res) => {
     }
 
     // Vérifier que la commande est bien attribuée à ce livreur
-    if (
-      !commande.livraison?.livreurId ||
-      commande.livraison.livreurId.toString() !== req.livreur._id.toString()
-    ) {
-      return res.status(403).json({
-        message: "Cette commande ne vous est pas attribuée",
+   // ===============================
+// ACCEPTER UNE COMMANDE
+// ===============================
+exports.accepterCommande = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const livreur = await Livreur.findById(req.livreur._id);
+
+    if (!livreur) {
+      return res.status(404).json({
+        message: "Livreur introuvable",
       });
     }
+
+    if (!livreur.actif) {
+      return res.status(403).json({
+        message: "Votre compte livreur est désactivé",
+      });
+    }
+
+    // Un livreur ne peut avoir qu'une seule livraison active
+    if (livreur.commandeActuelle) {
+      return res.status(400).json({
+        message: "Vous avez déjà une commande en cours",
+      });
+    }
+
+    if (livreur.statut !== "AVAILABLE") {
+      return res.status(400).json({
+        message: "Vous devez être disponible pour accepter une commande",
+      });
+    }
+
+    /*
+     * IMPORTANT :
+     * On cherche uniquement une commande :
+     * - encore en recherche
+     * - sans livreur
+     *
+     * findOneAndUpdate permet d'éviter que deux livreurs
+     * prennent la même commande simultanément.
+     */
+    const commande = await Commandeapi.findOneAndUpdate(
+      {
+        _id: id,
+        "livraison.statut": "SEARCHING",
+        "livraison.livreurId": null,
+      },
+      {
+        $set: {
+          "livraison.livreurId": livreur._id,
+          "livraison.assigneeAt": new Date(),
+          "livraison.accepteAt": new Date(),
+          "livraison.statut": "ACCEPTED",
+        },
+      },
+      {
+        new: true,
+      },
+    );
+
+    if (!commande) {
+      return res.status(409).json({
+        message:
+          "Cette commande n'est plus disponible. Elle a probablement déjà été prise par un autre livreur.",
+      });
+    }
+
+    // Le livreur devient occupé
+    livreur.statut = "BUSY";
+    livreur.commandeActuelle = commande._id;
+
+    await livreur.save();
+
+    // ===============================
+    // NOTIFICATION CLIENT
+    // ===============================
+
+    const io = req.app.get("io");
+
+    if (io) {
+      io.to(commande.client.userId.toString()).emit(
+        "commande_update",
+        {
+          id: commande._id,
+          statutLivraison: "ACCEPTED",
+          livreurId: livreur._id,
+          livreur: {
+            id: livreur._id,
+            username: livreur.username,
+            telephone: livreur.telephone,
+            localisation: livreur.localisation,
+          },
+        },
+      );
+    }
+
+    return res.status(200).json({
+      message: "Commande acceptée",
+      commande,
+    });
+  } catch (error) {
+    console.error("ACCEPTER COMMANDE ERROR:", error);
+
+    return res.status(500).json({
+      message: "Erreur serveur",
+    });
+  }
+};
 
     // Vérifier si le livreur a déjà une commande
     if (req.livreur.commandeActuelle) {

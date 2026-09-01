@@ -11,7 +11,8 @@ const {
   confirmerPaiementAdmin,
   rejeterPaiementAdmin,
   marquerCommeLivre,
-  marquerCommeExpedie
+  marquerCommeExpedie,
+  mettreAJourLocalisationClient,
 } = require("../controller/commandeController");
 
 const authClient = require("../authentification/authClient");
@@ -19,6 +20,12 @@ const authClient = require("../authentification/authClient");
 /* =========================
    ROUTES CLIENT SÉCURISÉES
    ========================= */
+
+router.put(
+  "/commandes/:id/localisation-client",
+  authClient,
+  mettreAJourLocalisationClient,
+);
 
 // Créer une commande (le userId vient du token)
 router.post("/commandes", authClient, creerCommande);
@@ -42,7 +49,7 @@ router.post(
   async (req, res, next) => {
     try {
       const commande = await require("../models/paiementmodel").findById(
-        req.params.id
+        req.params.id,
       );
       if (!commande)
         return res.status(404).json({ message: "Commande introuvable" });
@@ -56,7 +63,7 @@ router.post(
     } catch (err) {
       next(err);
     }
-  }
+  },
 );
 
 /* =========================

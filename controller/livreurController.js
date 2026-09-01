@@ -267,24 +267,11 @@ exports.mesCommandes = async (req, res) => {
   }
 };
 
-// ===============================
 // ACCEPTER UNE COMMANDE
 // ===============================
-exports.accepterCommande = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const commande = await Commandeapi.findById(id);
-
-    if (!commande) {
-      return res.status(404).json({
-        message: "Commande introuvable",
-      });
-    }
-
-    // Vérifier que la commande est bien attribuée à ce livreur
-   // ===============================
+// ===============================
 // ACCEPTER UNE COMMANDE
+// SEARCHING → ACCEPTED
 // ===============================
 exports.accepterCommande = async (req, res) => {
   try {
@@ -304,7 +291,6 @@ exports.accepterCommande = async (req, res) => {
       });
     }
 
-    // Un livreur ne peut avoir qu'une seule livraison active
     if (livreur.commandeActuelle) {
       return res.status(400).json({
         message: "Vous avez déjà une commande en cours",
@@ -317,20 +303,18 @@ exports.accepterCommande = async (req, res) => {
       });
     }
 
-    /*
-     * IMPORTANT :
-     * On cherche uniquement une commande :
-     * - encore en recherche
-     * - sans livreur
-     *
-     * findOneAndUpdate permet d'éviter que deux livreurs
-     * prennent la même commande simultanément.
-     */
+    // ==========================================
+    // ATTRIBUTION ATOMIQUE
+    // ==========================================
+
     const commande = await Commandeapi.findOneAndUpdate(
       {
         _id: id,
         "livraison.statut": "SEARCHING",
-        "livraison.livreurId": null,
+        $or: [
+          { "livraison.livreurId": null },
+          { "livraison.livreurId": { $exists: false } },
+        ],
       },
       {
         $set: {
@@ -352,25 +336,30 @@ exports.accepterCommande = async (req, res) => {
       });
     }
 
-    // Le livreur devient occupé
+    // ==========================================
+    // OCCUPER LE LIVREUR
+    // ==========================================
+
     livreur.statut = "BUSY";
     livreur.commandeActuelle = commande._id;
 
     await livreur.save();
 
-    // ===============================
+    // ==========================================
     // NOTIFICATION CLIENT
-    // ===============================
+    // ==========================================
 
     const io = req.app.get("io");
 
-    if (io) {
+    if (io && commande.client?.userId) {
       io.to(commande.client.userId.toString()).emit(
         "commande_update",
         {
           id: commande._id,
           statutLivraison: "ACCEPTED",
+
           livreurId: livreur._id,
+
           livreur: {
             id: livreur._id,
             username: livreur.username,
@@ -389,61 +378,6 @@ exports.accepterCommande = async (req, res) => {
     console.error("ACCEPTER COMMANDE ERROR:", error);
 
     return res.status(500).json({
-      message: "Erreur serveur",
-    });
-  }
-};
-
-    // Vérifier si le livreur a déjà une commande
-    if (req.livreur.commandeActuelle) {
-      return res.status(400).json({
-        message: "Vous avez déjà une commande en cours",
-      });
-    }
-
-    // Vérifier le statut de la livraison
-    if (commande.livraison.statut !== "REQUESTED") {
-      return res.status(400).json({
-        message: "Cette commande ne peut pas être acceptée",
-      });
-    }
-
-    // ===============================
-    // ACCEPTER
-    // ===============================
-
-    commande.livraison.accepteAt = new Date();
-    commande.livraison.statut = "ACCEPTED";
-
-    // Livreurr occupé
-    req.livreur.statut = "BUSY";
-    req.livreur.commandeActuelle = commande._id;
-
-    await commande.save();
-    await req.livreur.save();
-
-    // ===============================
-    // NOTIFIER LE CLIENT
-    // ===============================
-
-    const io = req.app.get("io");
-
-    if (io) {
-      io.to(commande.client.userId.toString()).emit("commande_update", {
-        id: commande._id,
-        statutLivraison: "ACCEPTED",
-        livreurId: req.livreur._id,
-      });
-    }
-
-    res.status(200).json({
-      message: "Commande acceptée",
-      commande,
-    });
-  } catch (error) {
-    console.error("ACCEPTER COMMANDE ERROR:", error);
-
-    res.status(500).json({
       message: "Erreur serveur",
     });
   }
@@ -519,26 +453,30 @@ exports.rechercherLivreur = async (req, res) => {
   }
 };
 
-
 exports.commandesDisponibles = async (req, res) => {
   try {
     const commandes = await Commandeapi.find({
       "livraison.statut": "SEARCHING",
+      $or: [
+        { "livraison.livreurId": null },
+        { "livraison.livreurId": { $exists: false } },
+      ],
     })
       .sort({ createdAt: -1 })
       .lean();
 
-    res.status(200).json({
+    return res.status(200).json({
       commandes,
     });
   } catch (error) {
     console.error("COMMANDES DISPONIBLES ERROR:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Erreur serveur",
     });
   }
 };
+
 
 // ===============================
 // COMMENCER LA RÉCUPÉRATION

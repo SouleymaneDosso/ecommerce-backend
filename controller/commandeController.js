@@ -787,6 +787,119 @@ const marquerCommeExpedie = async (req, res) => {
     res.status(500).json({ message: "Erreur serveur" });
   }
 };
+
+const mettreAJourLocalisationClient = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { latitude, longitude } = req.body;
+
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+
+    // ==============================
+    // VALIDATION
+    // ==============================
+    if (
+      latitude === undefined ||
+      longitude === undefined ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng)
+    ) {
+      return res.status(400).json({
+        message: "Latitude et longitude valides requises",
+      });
+    }
+
+    if (
+      lat < -90 ||
+      lat > 90 ||
+      lng < -180 ||
+      lng > 180
+    ) {
+      return res.status(400).json({
+        message: "Coordonnées GPS invalides",
+      });
+    }
+
+    // ==============================
+    // COMMANDE
+    // ==============================
+    const commande = await Commandeapi.findById(id);
+
+    if (!commande) {
+      return res.status(404).json({
+        message: "Commande introuvable",
+      });
+    }
+
+    // ==============================
+    // SÉCURITÉ
+    // Le client ne peut modifier que
+    // sa propre commande
+    // ==============================
+    if (
+      commande.client.userId.toString() !==
+      req.auth.userId.toString()
+    ) {
+      return res.status(403).json({
+        message: "Cette commande ne vous appartient pas",
+      });
+    }
+
+    // ==============================
+    // POSITION GPS
+    // ==============================
+    const maintenant = new Date();
+
+    commande.client.localisation = {
+      latitude: lat,
+      longitude: lng,
+      derniereMiseAJour: maintenant,
+    };
+
+    await commande.save();
+
+    // ==============================
+    // TEMPS RÉEL
+    // ==============================
+    const io = req.app.get("io");
+
+    if (io) {
+      io.to(`commande:${commande._id}`).emit(
+        "client_position",
+        {
+          commandeId: commande._id.toString(),
+
+          clientId:
+            commande.client.userId.toString(),
+
+          latitude: lat,
+
+          longitude: lng,
+
+          derniereMiseAJour: maintenant,
+        },
+      );
+    }
+
+    return res.status(200).json({
+      message: "Position client mise à jour",
+
+      localisation: commande.client.localisation,
+    });
+  } catch (error) {
+    console.error(
+      "GPS CLIENT ERROR:",
+      error,
+    );
+
+    return res.status(500).json({
+      message: "Erreur serveur",
+    });
+  }
+};
+
+
 module.exports = {
   creerCommande,
   getCommandeById,
@@ -797,4 +910,5 @@ module.exports = {
   rejeterPaiementAdmin,
   confirmerCommandeCOD,
   marquerCommeLivre,
+  mettreAJourLocalisationClient
 };

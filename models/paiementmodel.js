@@ -125,6 +125,25 @@ const CommandeSchema = new mongoose.Schema(
       codePostal: { type: String, required: true },
       pays: { type: String, required: true },
       numero: { type: Number, required: true },
+      // ==============================
+      // POSITION GPS CLIENT
+      // ==============================
+      localisation: {
+        latitude: {
+          type: Number,
+          default: null,
+        },
+
+        longitude: {
+          type: Number,
+          default: null,
+        },
+
+        derniereMiseAJour: {
+          type: Date,
+          default: null,
+        },
+      },
     },
 
     /* ---------- PANIER ---------- */
@@ -143,66 +162,66 @@ const CommandeSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-    
-/* ---------- LIVRAISON ---------- */
-livraison: {
-  livreurId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Livreur",
-    default: null,
-  },
 
-  prixTrajet: {
-    type: Number,
-    default: 0,
-    min: 0,
-  },
+    /* ---------- LIVRAISON ---------- */
+    livraison: {
+      livreurId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Livreur",
+        default: null,
+      },
 
-  prixChoisiParLivreur: {
-    type: Boolean,
-    default: false,
-  },
+      prixTrajet: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
 
-  assigneeAt: {
-    type: Date,
-    default: null,
-  },
+      prixChoisiParLivreur: {
+        type: Boolean,
+        default: false,
+      },
 
-  prixTrajetChoisiAt: {
-    type: Date,
-    default: null,
-  },
+      assigneeAt: {
+        type: Date,
+        default: null,
+      },
 
-  accepteAt: {
-    type: Date,
-    default: null,
-  },
+      prixTrajetChoisiAt: {
+        type: Date,
+        default: null,
+      },
 
-  livreAt: {
-    type: Date,
-    default: null,
-  },
+      accepteAt: {
+        type: Date,
+        default: null,
+      },
 
-  statut: {
-    type: String,
-    enum: [
-      "NOT_STARTED",
-      "SEARCHING",
-      "REQUESTED",
-      "ACCEPTED",
-      "PICKING_UP",
-      "IN_DELIVERY",
-      "DELIVERED",
-      "CANCELLED",
-    ],
-    default: "NOT_STARTED",
-  },
-},
+      livreAt: {
+        type: Date,
+        default: null,
+      },
 
-totalProduits: {
-  type: Number,
-  required: true,
-},
+      statut: {
+        type: String,
+        enum: [
+          "NOT_STARTED",
+          "SEARCHING",
+          "REQUESTED",
+          "ACCEPTED",
+          "PICKING_UP",
+          "IN_DELIVERY",
+          "DELIVERED",
+          "CANCELLED",
+        ],
+        default: "NOT_STARTED",
+      },
+    },
+
+    totalProduits: {
+      type: Number,
+      required: true,
+    },
     /* ---------- CONFIG PAIEMENT ---------- */
     modePaiement: {
       type: String,
@@ -233,7 +252,14 @@ totalProduits: {
     /* ---------- STATUT ---------- */
     statusCommande: {
       type: String,
-      enum: ["PENDING", "PARTIALLY_PAID", "PAID", "CONFIRMED", "DELIVERED", "SHIPPED"],
+      enum: [
+        "PENDING",
+        "PARTIALLY_PAID",
+        "PAID",
+        "CONFIRMED",
+        "DELIVERED",
+        "SHIPPED",
+      ],
       default: "PENDING",
     },
   },

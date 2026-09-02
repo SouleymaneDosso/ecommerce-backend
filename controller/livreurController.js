@@ -495,7 +495,7 @@ exports.rechercherLivreur = async (req, res) => {
     if (commande.statusCommande !== "CONFIRMED") {
       return res.status(403).json({
         message:
-          "La livraison ne peut pas être demandée avant la confirmation de la commande par l'administrateur.",
+          "La livraison ne peut pas être demandée avant la confirmation de la commande par l'administrateur Veuillez patienter. Vous pouvez voir votre commande dans l'espace compte et choisir un livreur pour la commande il suffit de cliquer sur la commande.",
         statusCommande: commande.statusCommande,
       });
     }

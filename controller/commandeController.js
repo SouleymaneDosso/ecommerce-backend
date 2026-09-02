@@ -606,7 +606,7 @@ const confirmerCommandeCOD = async (req, res) => {
     await commande.save();
     const io = req.app.get("io");
 
-    io.to(commande.client.userId.toString()).emit("commande_update", {
+    io.to(`user:${commande.client.userId}`).emit("commande_update", {
       id: commande._id,
       status: "CONFIRMED",
     });
@@ -722,7 +722,7 @@ const marquerCommeLivre = async (req, res) => {
     commande.statusCommande = "DELIVERED";
     await commande.save();
 
-    io.to(commande.client.userId.toString()).emit("commande_update", {
+    io.to(`user:${commande.client.userId}`).emit("commande_update", {
       id: commande._id,
       status: "DELIVERED",
     });
@@ -776,7 +776,7 @@ const marquerCommeExpedie = async (req, res) => {
 
     commande.statusCommande = "SHIPPED";
 
-    io.to(commande.client.userId.toString()).emit("commande_update", {
+    io.to(`user:${commande.client.userId}`).emit("commande_update", {
       id: commande._id,
       status: "SHIPPED",
     });

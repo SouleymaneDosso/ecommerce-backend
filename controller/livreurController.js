@@ -353,10 +353,21 @@ exports.accepterCommande = async (req, res) => {
     const commande = await Commandeapi.findOneAndUpdate(
       {
         _id: id,
+
+        // 🔒 L'ADMIN DOIT AVOIR CONFIRMÉ
+        statusCommande: "CONFIRMED",
+
+        // 🔒 LA COMMANDE DOIT ÊTRE DISPONIBLE
         "livraison.statut": "SEARCHING",
+
+        // 🔒 AUCUN AUTRE LIVREUR
         $or: [
           { "livraison.livreurId": null },
-          { "livraison.livreurId": { $exists: false } },
+          {
+            "livraison.livreurId": {
+              $exists: false,
+            },
+          },
         ],
       },
       {
@@ -448,9 +459,10 @@ exports.accepterCommande = async (req, res) => {
     });
   }
 };
-
 // ===============================
 // LANCER LA RECHERCHE D'UN LIVREUR
+// UNIQUEMENT APRÈS CONFIRMATION ADMIN
+// CONFIRMED + NOT_STARTED → SEARCHING
 // ===============================
 exports.rechercherLivreur = async (req, res) => {
   try {
@@ -464,20 +476,46 @@ exports.rechercherLivreur = async (req, res) => {
       });
     }
 
-    // Vérifier que la commande appartient bien au client connecté
+    // ==========================================
+    // SÉCURITÉ : LA COMMANDE DOIT APPARTENIR
+    // AU CLIENT CONNECTÉ
+    // ==========================================
+
     if (commande.client.userId.toString() !== req.auth.userId.toString()) {
       return res.status(403).json({
         message: "Cette commande ne vous appartient pas",
       });
     }
 
-    // La recherche ne peut être lancée qu'une seule fois
+    // ==========================================
+    // 🔒 SÉCURITÉ PRINCIPALE
+    // L'ADMIN DOIT AVOIR CONFIRMÉ LA COMMANDE
+    // ==========================================
+
+    if (commande.statusCommande !== "CONFIRMED") {
+      return res.status(403).json({
+        message:
+          "La livraison ne peut pas être demandée avant la confirmation de la commande par l'administrateur.",
+        statusCommande: commande.statusCommande,
+      });
+    }
+
+    // ==========================================
+    // LA RECHERCHE NE PEUT ÊTRE LANCÉE
+    // QU'UNE SEULE FOIS
+    // ==========================================
+
     if (commande.livraison.statut !== "NOT_STARTED") {
       return res.status(400).json({
         message: "La recherche d'un livreur est déjà lancée",
         statut: commande.livraison.statut,
       });
     }
+
+    // ==========================================
+    // CALCUL DE SÉCURITÉ DU TOTAL
+    // ==========================================
+
     if (
       commande.totalProduits === undefined ||
       commande.totalProduits === null
@@ -488,32 +526,43 @@ exports.rechercherLivreur = async (req, res) => {
         0,
       );
     }
-    // Lancer la recherche
+
+    // ==========================================
+    // LANCER LA RECHERCHE
+    // ==========================================
+
     commande.livraison.statut = "SEARCHING";
 
     await commande.save();
 
-    // Notification temps réel
+    // ==========================================
+    // NOTIFICATION TEMPS RÉEL AUX LIVREURS
+    // ==========================================
+
     const io = req.app.get("io");
 
     if (io) {
       io.emit("nouvelle_commande_livraison", {
-        commandeId: commande._id,
+        commandeId: commande._id.toString(),
+
         ville: commande.client.ville,
+
         adresse: commande.client.adresse,
+
         totalProduits: commande.totalProduits,
+
         panier: commande.panier,
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Recherche de livreur lancée",
       commande,
     });
   } catch (error) {
     console.error("RECHERCHE LIVREUR ERROR:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Erreur serveur",
     });
   }
@@ -522,10 +571,20 @@ exports.rechercherLivreur = async (req, res) => {
 exports.commandesDisponibles = async (req, res) => {
   try {
     const commandes = await Commandeapi.find({
+      // 🔒 UNIQUEMENT LES COMMANDES CONFIRMÉES PAR L'ADMIN
+      statusCommande: "CONFIRMED",
+
+      // 🔒 LE CLIENT A DEMANDÉ UN LIVREUR
       "livraison.statut": "SEARCHING",
+
+      // 🔒 AUCUN LIVREUR ATTRIBUÉ
       $or: [
         { "livraison.livreurId": null },
-        { "livraison.livreurId": { $exists: false } },
+        {
+          "livraison.livreurId": {
+            $exists: false,
+          },
+        },
       ],
     })
       .sort({ createdAt: -1 })
@@ -581,26 +640,17 @@ exports.commencerRecuperation = async (req, res) => {
 
     const io = req.app.get("io");
 
+    if (io && commande.client?.userId) {
+      io.to(`user:${commande.client.userId}`).emit("commande_update", {
+        id: commande._id.toString(),
+        statutLivraison: "PICKING_UP",
+      });
 
-if (io && commande.client?.userId) {
-  io.to(`user:${commande.client.userId}`).emit(
-    "commande_update",
-    {
-      id: commande._id.toString(),
-      statutLivraison: "PICKING_UP",
-    },
-  );
-
-  io.to(`commande:${commande._id}`).emit(
-    "commande_update",
-    {
-      id: commande._id.toString(),
-      statutLivraison: "PICKING_UP",
-    },
-  );
-}
-
-
+      io.to(`commande:${commande._id}`).emit("commande_update", {
+        id: commande._id.toString(),
+        statutLivraison: "PICKING_UP",
+      });
+    }
 
     return res.status(200).json({
       message: "Récupération de la commande commencée",
@@ -653,26 +703,17 @@ exports.recupererCommande = async (req, res) => {
 
     const io = req.app.get("io");
 
- 
-if (io && commande.client?.userId) {
-  io.to(`user:${commande.client.userId}`).emit(
-    "commande_update",
-    {
-      id: commande._id.toString(),
-      statutLivraison: "IN_DELIVERY",
-    },
-  );
+    if (io && commande.client?.userId) {
+      io.to(`user:${commande.client.userId}`).emit("commande_update", {
+        id: commande._id.toString(),
+        statutLivraison: "IN_DELIVERY",
+      });
 
-  io.to(`commande:${commande._id}`).emit(
-    "commande_update",
-    {
-      id: commande._id.toString(),
-      statutLivraison: "IN_DELIVERY",
-    },
-  );
-}
-
-
+      io.to(`commande:${commande._id}`).emit("commande_update", {
+        id: commande._id.toString(),
+        statutLivraison: "IN_DELIVERY",
+      });
+    }
 
     return res.status(200).json({
       message: "Commande récupérée",
@@ -731,32 +772,23 @@ exports.livrerCommande = async (req, res) => {
 
     const io = req.app.get("io");
 
+    if (io && commande.client?.userId) {
+      io.to(`user:${commande.client.userId}`).emit("commande_update", {
+        id: commande._id.toString(),
 
-if (io && commande.client?.userId) {
-  io.to(`user:${commande.client.userId}`).emit(
-    "commande_update",
-    {
-      id: commande._id.toString(),
+        statutLivraison: "DELIVERED",
 
-      statutLivraison: "DELIVERED",
+        livreurId: req.livreur._id.toString(),
+      });
 
-      livreurId: req.livreur._id.toString(),
-    },
-  );
+      io.to(`commande:${commande._id}`).emit("commande_update", {
+        id: commande._id.toString(),
 
-  io.to(`commande:${commande._id}`).emit(
-    "commande_update",
-    {
-      id: commande._id.toString(),
+        statutLivraison: "DELIVERED",
 
-      statutLivraison: "DELIVERED",
-
-      livreurId: req.livreur._id.toString(),
-    },
-  );
-}
-
-
+        livreurId: req.livreur._id.toString(),
+      });
+    }
 
     return res.status(200).json({
       message: "Commande livrée avec succès",

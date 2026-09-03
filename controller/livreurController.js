@@ -82,11 +82,17 @@ exports.login = async (req, res) => {
     }
 
     // Vérifier si le compte est actif
-    if (!livreur.actif) {
-      return res.status(403).json({
-        message: "Compte livreur désactivé",
-      });
-    }
+    if (livreur.bloque) {
+  return res.status(403).json({
+    message: "Votre compte est bloqué par l'administrateur",
+  });
+}
+
+if (!livreur.actif) {
+  return res.status(403).json({
+    message: "Compte livreur désactivé",
+  });
+}
 
     // Comparer le mot de passe avec le hash enregistré
     const passwordCorrect = await livreur.comparePassword(password);
@@ -333,6 +339,18 @@ exports.accepterCommande = async (req, res) => {
         message: "Votre compte livreur est désactivé",
       });
     }
+    if (livreur.bloque) {
+  return res.status(403).json({
+    message: "Votre compte est bloqué par l'administrateur",
+  });
+}
+
+if (livreur.limite) {
+  return res.status(403).json({
+    message:
+      "Votre compte est actuellement limité. Vous ne pouvez pas accepter de nouvelles commandes.",
+  });
+}
 
     if (livreur.commandeActuelle) {
       return res.status(400).json({
@@ -796,6 +814,364 @@ exports.livrerCommande = async (req, res) => {
     });
   } catch (error) {
     console.error("LIVRER COMMANDE ERROR:", error);
+
+    return res.status(500).json({
+      message: "Erreur serveur",
+    });
+  }
+};
+
+// =====================================================
+// ADMIN — LISTE DES LIVREURS
+// =====================================================
+
+exports.adminGetLivreurs = async (req, res) => {
+  try {
+    const livreurs = await Livreur.find()
+      .populate({
+        path: "commandeActuelle",
+        select: "_id statusCommande livraison client total",
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      livreurs,
+    });
+  } catch (error) {
+    console.error("ADMIN GET LIVREURS ERROR:", error);
+
+    return res.status(500).json({
+      message: "Erreur serveur",
+    });
+  }
+};
+
+
+// =====================================================
+// ADMIN — BLOQUER UN LIVREUR
+// =====================================================
+
+exports.adminBloquerLivreur = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { raison } = req.body;
+
+    const livreur = await Livreur.findById(id);
+
+    if (!livreur) {
+      return res.status(404).json({
+        message: "Livreur introuvable",
+      });
+    }
+
+    livreur.bloque = true;
+    livreur.actif = false;
+    livreur.statut = "OFFLINE";
+    livreur.raisonRestriction = raison || "Compte bloqué par l'administrateur";
+
+    await livreur.save();
+
+    const io = req.app.get("io");
+
+    if (io) {
+      io.emit("livreur_admin_update", {
+        livreurId: livreur._id.toString(),
+        bloque: true,
+        actif: false,
+        limite: livreur.limite,
+        statut: "OFFLINE",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Livreur bloqué",
+      livreur,
+    });
+  } catch (error) {
+    console.error("ADMIN BLOQUER LIVREUR ERROR:", error);
+
+    return res.status(500).json({
+      message: "Erreur serveur",
+    });
+  }
+};
+
+
+// =====================================================
+// ADMIN — DÉBLOQUER UN LIVREUR
+// =====================================================
+
+exports.adminDebloquerLivreur = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const livreur = await Livreur.findById(id);
+
+    if (!livreur) {
+      return res.status(404).json({
+        message: "Livreur introuvable",
+      });
+    }
+
+    livreur.bloque = false;
+    livreur.actif = true;
+    livreur.raisonRestriction = "";
+
+    if (livreur.statut === "OFFLINE") {
+      livreur.statut = "OFFLINE";
+    }
+
+    await livreur.save();
+
+    const io = req.app.get("io");
+
+    if (io) {
+      io.emit("livreur_admin_update", {
+        livreurId: livreur._id.toString(),
+        bloque: false,
+        actif: true,
+        limite: livreur.limite,
+        statut: livreur.statut,
+      });
+    }
+
+    return res.status(200).json({
+      message: "Livreur débloqué",
+      livreur,
+    });
+  } catch (error) {
+    console.error("ADMIN DEBLOQUER LIVREUR ERROR:", error);
+
+    return res.status(500).json({
+      message: "Erreur serveur",
+    });
+  }
+};
+
+
+// =====================================================
+// ADMIN — LIMITER UN LIVREUR
+// =====================================================
+
+exports.adminLimiterLivreur = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { raison } = req.body;
+
+    const livreur = await Livreur.findById(id);
+
+    if (!livreur) {
+      return res.status(404).json({
+        message: "Livreur introuvable",
+      });
+    }
+
+    if (livreur.bloque) {
+      return res.status(400).json({
+        message: "Ce livreur est bloqué",
+      });
+    }
+
+    livreur.limite = true;
+    livreur.raisonRestriction =
+      raison || "Compte limité par l'administrateur";
+
+    await livreur.save();
+
+    const io = req.app.get("io");
+
+    if (io) {
+      io.emit("livreur_admin_update", {
+        livreurId: livreur._id.toString(),
+        bloque: livreur.bloque,
+        actif: livreur.actif,
+        limite: true,
+        statut: livreur.statut,
+      });
+    }
+
+    return res.status(200).json({
+      message: "Livreur limité",
+      livreur,
+    });
+  } catch (error) {
+    console.error("ADMIN LIMITER LIVREUR ERROR:", error);
+
+    return res.status(500).json({
+      message: "Erreur serveur",
+    });
+  }
+};
+
+
+// =====================================================
+// ADMIN — RETIRER LA LIMITE
+// =====================================================
+
+exports.adminRetirerLimiteLivreur = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const livreur = await Livreur.findById(id);
+
+    if (!livreur) {
+      return res.status(404).json({
+        message: "Livreur introuvable",
+      });
+    }
+
+    livreur.limite = false;
+
+    if (!livreur.bloque) {
+      livreur.raisonRestriction = "";
+    }
+
+    await livreur.save();
+
+    const io = req.app.get("io");
+
+    if (io) {
+      io.emit("livreur_admin_update", {
+        livreurId: livreur._id.toString(),
+        bloque: livreur.bloque,
+        actif: livreur.actif,
+        limite: false,
+        statut: livreur.statut,
+      });
+    }
+
+    return res.status(200).json({
+      message: "Limite retirée",
+      livreur,
+    });
+  } catch (error) {
+    console.error("ADMIN RETIRER LIMITE ERROR:", error);
+
+    return res.status(500).json({
+      message: "Erreur serveur",
+    });
+  }
+};
+
+
+// =====================================================
+// ADMIN — ACTIVER / DÉSACTIVER
+// =====================================================
+
+exports.adminChangerActif = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { actif } = req.body;
+
+    if (typeof actif !== "boolean") {
+      return res.status(400).json({
+        message: "La valeur actif doit être true ou false",
+      });
+    }
+
+    const livreur = await Livreur.findById(id);
+
+    if (!livreur) {
+      return res.status(404).json({
+        message: "Livreur introuvable",
+      });
+    }
+
+    livreur.actif = actif;
+
+    if (!actif) {
+      livreur.statut = "OFFLINE";
+    }
+
+    await livreur.save();
+
+    const io = req.app.get("io");
+
+    if (io) {
+      io.emit("livreur_admin_update", {
+        livreurId: livreur._id.toString(),
+        bloque: livreur.bloque,
+        actif: livreur.actif,
+        limite: livreur.limite,
+        statut: livreur.statut,
+      });
+    }
+
+    return res.status(200).json({
+      message: actif
+        ? "Livreur activé"
+        : "Livreur désactivé",
+      livreur,
+    });
+  } catch (error) {
+    console.error("ADMIN ACTIF LIVREUR ERROR:", error);
+
+    return res.status(500).json({
+      message: "Erreur serveur",
+    });
+  }
+};
+
+
+// =====================================================
+// ADMIN — CHANGER LE STATUT
+// =====================================================
+
+exports.adminChangerStatut = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { statut } = req.body;
+
+    const statutsAutorises = [
+      "OFFLINE",
+      "AVAILABLE",
+      "BUSY",
+    ];
+
+    if (!statutsAutorises.includes(statut)) {
+      return res.status(400).json({
+        message: "Statut invalide",
+      });
+    }
+
+    const livreur = await Livreur.findById(id);
+
+    if (!livreur) {
+      return res.status(404).json({
+        message: "Livreur introuvable",
+      });
+    }
+
+    if (livreur.bloque || !livreur.actif) {
+      return res.status(400).json({
+        message:
+          "Impossible de modifier le statut d'un livreur bloqué ou désactivé",
+      });
+    }
+
+    livreur.statut = statut;
+
+    await livreur.save();
+
+    const io = req.app.get("io");
+
+    if (io) {
+      io.emit("livreur_admin_update", {
+        livreurId: livreur._id.toString(),
+        bloque: livreur.bloque,
+        actif: livreur.actif,
+        limite: livreur.limite,
+        statut: livreur.statut,
+      });
+    }
+
+    return res.status(200).json({
+      message: "Statut du livreur mis à jour",
+      livreur,
+    });
+  } catch (error) {
+    console.error("ADMIN STATUT LIVREUR ERROR:", error);
 
     return res.status(500).json({
       message: "Erreur serveur",

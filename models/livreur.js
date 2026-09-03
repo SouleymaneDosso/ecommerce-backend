@@ -46,6 +46,20 @@ const livreurSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+     bloque: {
+      type: Boolean,
+      default: false,
+    },
+ limite: {
+      type: Boolean,
+      default: false,
+    },
+
+    raisonRestriction: {
+      type: String,
+      default: "",
+      trim: true,
+    },
 
     statut: {
       type: String,

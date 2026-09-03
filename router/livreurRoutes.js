@@ -4,68 +4,100 @@ const router = express.Router();
 
 const authLivreur = require("../authentification/authLivreur");
 const authClient = require("../authentification/authClient");
+const authAdmin = require("../authentification/authAdmin");
 
 const livreurController = require("../controller/livreurController");
 
-// ===============================
-// INSCRIPTION
-// ===============================
 
-router.post("/signup", livreurController.signup);
+// =====================================================
+// LIVREUR — INSCRIPTION
+// =====================================================
 
-// ===============================
-// CONNEXION
-// ===============================
+router.post(
+  "/signup",
+  livreurController.signup
+);
 
-router.post("/login", livreurController.login);
 
-// ===============================
-// PROFIL
-// ===============================
+// =====================================================
+// LIVREUR — CONNEXION
+// =====================================================
 
-router.get("/profil", authLivreur, livreurController.profil);
+router.post(
+  "/login",
+  livreurController.login
+);
 
-// ===============================
-// STATUT
-// ===============================
 
-router.put("/statut", authLivreur, livreurController.changerStatut);
+// =====================================================
+// LIVREUR — PROFIL
+// =====================================================
 
-// ===============================
-// LOCALISATION GPS
-// ===============================
+router.get(
+  "/profil",
+  authLivreur,
+  livreurController.profil
+);
+
+
+// =====================================================
+// LIVREUR — STATUT
+// =====================================================
+
+router.put(
+  "/statut",
+  authLivreur,
+  livreurController.changerStatut
+);
+
+
+// =====================================================
+// LIVREUR — GPS
+// =====================================================
 
 router.put(
   "/localisation",
   authLivreur,
-  livreurController.mettreAJourLocalisation,
+  livreurController.mettreAJourLocalisation
 );
 
-// ===============================
-// MES COMMANDES
-// ===============================
 
-router.get("/commandes", authLivreur, livreurController.mesCommandes);
+// =====================================================
+// LIVREUR — MES COMMANDES
+// =====================================================
 
-// ===============================
-// ACCEPTER COMMANDE
-// ===============================
+router.get(
+  "/commandes",
+  authLivreur,
+  livreurController.mesCommandes
+);
+
+
+// =====================================================
+// LIVREUR — ACCEPTER COMMANDE
+// =====================================================
 
 router.put(
   "/commandes/:id/accepter",
   authLivreur,
-  livreurController.accepterCommande,
+  livreurController.accepterCommande
 );
 
-// ===============================
-// chercher un livreur
-// ===============================
+
+// =====================================================
+// CLIENT — RECHERCHER UN LIVREUR
+// =====================================================
+
 router.put(
   "/commande/:id/rechercher-livreur",
   authClient,
-  livreurController.rechercherLivreur,
+  livreurController.rechercherLivreur
 );
 
+
+// =====================================================
+// LIVREUR — COMMANDES DISPONIBLES
+// =====================================================
 
 router.get(
   "/commandes-disponibles",
@@ -73,11 +105,21 @@ router.get(
   livreurController.commandesDisponibles
 );
 
+
+// =====================================================
+// LIVREUR — COMMENCER RÉCUPÉRATION
+// =====================================================
+
 router.put(
   "/commandes/:id/commencer-recuperation",
   authLivreur,
   livreurController.commencerRecuperation
 );
+
+
+// =====================================================
+// LIVREUR — RÉCUPÉRER
+// =====================================================
 
 router.put(
   "/commandes/:id/recuperer",
@@ -85,10 +127,76 @@ router.put(
   livreurController.recupererCommande
 );
 
+
+// =====================================================
+// LIVREUR — LIVRER
+// =====================================================
+
 router.put(
   "/commandes/:id/livrer",
   authLivreur,
   livreurController.livrerCommande
 );
+
+
+// =====================================================
+//                    ADMIN
+// =====================================================
+
+// Liste des livreurs
+router.get(
+  "/admin",
+  authAdmin,
+  livreurController.adminGetLivreurs
+);
+
+
+// Bloquer
+router.put(
+  "/admin/:id/bloquer",
+  authAdmin,
+  livreurController.adminBloquerLivreur
+);
+
+
+// Débloquer
+router.put(
+  "/admin/:id/debloquer",
+  authAdmin,
+  livreurController.adminDebloquerLivreur
+);
+
+
+// Limiter
+router.put(
+  "/admin/:id/limiter",
+  authAdmin,
+  livreurController.adminLimiterLivreur
+);
+
+
+// Retirer limite
+router.put(
+  "/admin/:id/retirer-limite",
+  authAdmin,
+  livreurController.adminRetirerLimiteLivreur
+);
+
+
+// Activer / désactiver
+router.put(
+  "/admin/:id/actif",
+  authAdmin,
+  livreurController.adminChangerActif
+);
+
+
+// Modifier statut
+router.put(
+  "/admin/:id/statut",
+  authAdmin,
+  livreurController.adminChangerStatut
+);
+
 
 module.exports = router;

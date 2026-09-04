@@ -83,17 +83,9 @@ exports.login = async (req, res) => {
       });
     }
 
-    // COMPTE BLOQUÉ PAR ADMIN
     if (livreur.bloque) {
       return res.status(403).json({
         message: "Votre compte est bloqué par l'administrateur",
-      });
-    }
-
-    // COMPTE DÉSACTIVÉ PAR ADMIN
-    if (!livreur.actif) {
-      return res.status(403).json({
-        message: "Compte livreur désactivé",
       });
     }
 
@@ -118,22 +110,15 @@ exports.login = async (req, res) => {
     return res.status(200).json({
       message: "Connexion réussie",
       token,
-
       livreur: {
         id: livreur._id,
         username: livreur.username,
         email: livreur.email,
         telephone: livreur.telephone,
-
-        actif: livreur.actif,
         bloque: livreur.bloque,
-
         limiteCoursesParJour: livreur.limiteCoursesParJour,
-
         statut: livreur.statut,
-
         localisation: livreur.localisation,
-
         commandeActuelle: livreur.commandeActuelle,
       },
     });
@@ -383,29 +368,15 @@ exports.accepterCommande = async (req, res) => {
       });
     }
 
-    // =================================================
-    // COMPTE ACTIF
-    // =================================================
-
-    if (!livreur.actif) {
-      return res.status(403).json({
-        message: "Votre compte livreur est désactivé",
-      });
-    }
-
-    // =================================================
-    // COMPTE NON BLOQUÉ
-    // =================================================
-
     if (livreur.bloque) {
       return res.status(403).json({
         message: "Votre compte est bloqué par l'administrateur",
       });
     }
 
-    // =================================================
+    // =====================================================
     // LIMITE JOURNALIÈRE
-    // =================================================
+    // =====================================================
 
     if (
       livreur.limiteCoursesParJour !== null &&
@@ -417,63 +388,50 @@ exports.accepterCommande = async (req, res) => {
       const finJour = new Date();
       finJour.setHours(23, 59, 59, 999);
 
-      const nombreCoursesAujourdHui = await Commandeapi.countDocuments({
-        "livraison.livreurId": livreur._id,
+      const nombreCoursesAujourdHui =
+        await Commandeapi.countDocuments({
+          "livraison.livreurId": livreur._id,
+          createdAt: {
+            $gte: debutJour,
+            $lte: finJour,
+          },
+        });
 
-        createdAt: {
-          $gte: debutJour,
-          $lte: finJour,
-        },
-      });
-
-      if (nombreCoursesAujourdHui >= livreur.limiteCoursesParJour) {
+      if (
+        nombreCoursesAujourdHui >=
+        livreur.limiteCoursesParJour
+      ) {
         return res.status(403).json({
           message: `Vous avez atteint votre limite de ${livreur.limiteCoursesParJour} course(s) pour aujourd'hui.`,
-
           limite: livreur.limiteCoursesParJour,
-
           coursesAujourdHui: nombreCoursesAujourdHui,
         });
       }
     }
 
-    // =================================================
-    // UNE SEULE COMMANDE À LA FOIS
-    // =================================================
-
-    if (livreur.commandeActuelle) {
-      return res.status(400).json({
-        message: "Vous avez déjà une commande en cours",
-      });
-    }
-
-    // =================================================
+    // =====================================================
     // LE LIVREUR DOIT ÊTRE DISPONIBLE
-    // =================================================
+    // =====================================================
 
     if (livreur.statut !== "AVAILABLE") {
       return res.status(400).json({
-        message: "Vous devez être disponible pour accepter une commande",
+        message:
+          "Vous devez être disponible pour accepter une commande",
       });
     }
 
-    // =================================================
-    // ATTRIBUTION ATOMIQUE
-    // =================================================
+    // =====================================================
+    // ATTRIBUTION
+    // =====================================================
 
     const maintenant = new Date();
 
     const commande = await Commandeapi.findOneAndUpdate(
       {
         _id: id,
-
-        // ADMIN A CONFIRMÉ
         statusCommande: "CONFIRMED",
-
-        // CLIENT RECHERCHE UN LIVREUR
         "livraison.statut": "SEARCHING",
 
-        // AUCUN LIVREUR ATTRIBUÉ
         $or: [
           {
             "livraison.livreurId": null,
@@ -488,11 +446,8 @@ exports.accepterCommande = async (req, res) => {
       {
         $set: {
           "livraison.livreurId": livreur._id,
-
           "livraison.assigneeAt": maintenant,
-
           "livraison.accepteAt": maintenant,
-
           "livraison.statut": "ACCEPTED",
         },
       },
@@ -501,10 +456,6 @@ exports.accepterCommande = async (req, res) => {
       },
     );
 
-    // =================================================
-    // COMMANDE DÉJÀ PRISE
-    // =================================================
-
     if (!commande) {
       return res.status(409).json({
         message:
@@ -512,25 +463,13 @@ exports.accepterCommande = async (req, res) => {
       });
     }
 
-    // =================================================
-    // OCCUPER LE LIVREUR
-    // =================================================
-
-    livreur.statut = "BUSY";
-
-    livreur.commandeActuelle = commande._id;
-
-    await livreur.save();
-
-    // =================================================
-    // SOCKET.IO
-    // =================================================
+    // IMPORTANT :
+    // On ne bloque plus le livreur avec commandeActuelle.
+    // Il peut accepter plusieurs commandes.
 
     const io = req.app.get("io");
 
     if (io && commande.client?.userId) {
-      const clientId = commande.client.userId.toString();
-
       const notification = {
         id: commande._id.toString(),
 
@@ -540,31 +479,23 @@ exports.accepterCommande = async (req, res) => {
 
         livreur: {
           id: livreur._id.toString(),
-
           username: livreur.username,
-
           telephone: livreur.telephone,
-
           localisation: livreur.localisation,
         },
       };
 
-      // CLIENT
-      io.to(`user:${clientId}`).emit(
-        "commande_update",
-        notification,
-      );
+      io.to(
+        `user:${commande.client.userId.toString()}`,
+      ).emit("commande_update", notification);
 
-      // ROOM COMMANDE
-      io.to(`commande:${commande._id}`).emit(
-        "commande_update",
-        notification,
-      );
+      io.to(
+        `commande:${commande._id}`,
+      ).emit("commande_update", notification);
     }
 
     return res.status(200).json({
       message: "Commande acceptée",
-
       commande,
     });
   } catch (error) {
@@ -833,10 +764,6 @@ exports.recupererCommande = async (req, res) => {
       });
     }
 
-    // =================================================
-    // VÉRIFIER LE LIVREUR
-    // =================================================
-
     if (
       !commande.livraison?.livreurId ||
       commande.livraison.livreurId.toString() !==
@@ -847,15 +774,31 @@ exports.recupererCommande = async (req, res) => {
       });
     }
 
-    // =================================================
-    // VÉRIFIER LE STATUT
-    // =================================================
-
     if (commande.livraison.statut !== "PICKING_UP") {
       return res.status(400).json({
-        message: "La commande n'est pas en cours de récupération",
-
+        message:
+          "La commande n'est pas en cours de récupération",
         statut: commande.livraison.statut,
+      });
+    }
+
+    // =====================================================
+    // UNE SEULE COMMANDE EN ROUTE À LA FOIS
+    // =====================================================
+
+    const commandeEnRoute = await Commandeapi.findOne({
+      "livraison.livreurId": req.livreur._id,
+      "livraison.statut": "IN_DELIVERY",
+      _id: {
+        $ne: commande._id,
+      },
+    });
+
+    if (commandeEnRoute) {
+      return res.status(400).json({
+        message:
+          "Vous avez déjà une commande en cours de livraison. Livrez-la avant de mettre une autre commande en route.",
+        commandeEnRouteId: commandeEnRoute._id,
       });
     }
 
@@ -863,33 +806,36 @@ exports.recupererCommande = async (req, res) => {
 
     await commande.save();
 
-    // =================================================
-    // SOCKET.IO
-    // =================================================
+    // Cette commande devient la commande actuellement en route
+    const livreur = await Livreur.findById(req.livreur._id);
+
+    if (livreur) {
+      livreur.commandeActuelle = commande._id;
+      livreur.statut = "BUSY";
+
+      await livreur.save();
+    }
 
     const io = req.app.get("io");
 
     if (io && commande.client?.userId) {
-      const clientRoom = `user:${commande.client.userId}`;
-
-      const commandeRoom = `commande:${commande._id}`;
-
-      io.to(clientRoom).emit("commande_update", {
+      const notification = {
         id: commande._id.toString(),
-
         statutLivraison: "IN_DELIVERY",
-      });
+        livreurId: req.livreur._id.toString(),
+      };
 
-      io.to(commandeRoom).emit("commande_update", {
-        id: commande._id.toString(),
+      io.to(
+        `user:${commande.client.userId.toString()}`,
+      ).emit("commande_update", notification);
 
-        statutLivraison: "IN_DELIVERY",
-      });
+      io.to(
+        `commande:${commande._id}`,
+      ).emit("commande_update", notification);
     }
 
     return res.status(200).json({
-      message: "Commande récupérée",
-
+      message: "Commande récupérée et mise en route",
       commande,
     });
   } catch (error) {
@@ -918,10 +864,6 @@ exports.livrerCommande = async (req, res) => {
       });
     }
 
-    // =================================================
-    // VÉRIFIER LE LIVREUR
-    // =================================================
-
     if (
       !commande.livraison?.livreurId ||
       commande.livraison.livreurId.toString() !==
@@ -932,25 +874,16 @@ exports.livrerCommande = async (req, res) => {
       });
     }
 
-    // =================================================
-    // VÉRIFIER LE STATUT
-    // =================================================
-
     if (commande.livraison.statut !== "IN_DELIVERY") {
       return res.status(400).json({
-        message: "Cette commande n'est pas en cours de livraison",
-
+        message:
+          "Cette commande n'est pas en cours de livraison",
         statut: commande.livraison.statut,
       });
     }
 
     commande.livraison.statut = "DELIVERED";
-
     commande.livraison.livreAt = new Date();
-
-    // =================================================
-    // LIBÉRER LE LIVREUR
-    // =================================================
 
     const livreur = await Livreur.findById(req.livreur._id);
 
@@ -960,43 +893,43 @@ exports.livrerCommande = async (req, res) => {
       });
     }
 
-    livreur.commandeActuelle = null;
+    // =====================================================
+    // LIBÉRER LA COMMANDE ACTUELLE
+    // =====================================================
+
+    if (
+      livreur.commandeActuelle &&
+      livreur.commandeActuelle.toString() ===
+        commande._id.toString()
+    ) {
+      livreur.commandeActuelle = null;
+    }
 
     livreur.statut = "AVAILABLE";
 
     await commande.save();
-
     await livreur.save();
-
-    // =================================================
-    // SOCKET.IO
-    // =================================================
 
     const io = req.app.get("io");
 
     if (io && commande.client?.userId) {
       const notification = {
         id: commande._id.toString(),
-
         statutLivraison: "DELIVERED",
-
         livreurId: livreur._id.toString(),
       };
 
-      io.to(`user:${commande.client.userId}`).emit(
-        "commande_update",
-        notification,
-      );
+      io.to(
+        `user:${commande.client.userId.toString()}`,
+      ).emit("commande_update", notification);
 
-      io.to(`commande:${commande._id}`).emit(
-        "commande_update",
-        notification,
-      );
+      io.to(
+        `commande:${commande._id}`,
+      ).emit("commande_update", notification);
     }
 
     return res.status(200).json({
       message: "Commande livrée avec succès",
-
       commande,
     });
   } catch (error) {
@@ -1077,7 +1010,6 @@ exports.adminGetLivreurs = async (req, res) => {
 exports.adminBloquerLivreur = async (req, res) => {
   try {
     const { id } = req.params;
-
     const { raison } = req.body;
 
     const livreur = await Livreur.findById(id);
@@ -1090,14 +1022,8 @@ exports.adminBloquerLivreur = async (req, res) => {
 
     livreur.bloque = true;
 
-    livreur.actif = false;
-
     livreur.raisonRestriction =
       raison || "Compte bloqué par l'administrateur";
-
-    // IMPORTANT :
-    // L'ADMIN NE MODIFIE PAS LE STATUT OPÉRATIONNEL.
-    // Le statut reste sous le contrôle du livreur.
 
     await livreur.save();
 
@@ -1106,21 +1032,15 @@ exports.adminBloquerLivreur = async (req, res) => {
     if (io) {
       io.emit("livreur_admin_update", {
         livreurId: livreur._id.toString(),
-
         bloque: true,
-
-        actif: false,
-
         limiteCoursesParJour:
           livreur.limiteCoursesParJour,
-
         statut: livreur.statut,
       });
     }
 
     return res.status(200).json({
       message: "Livreur bloqué",
-
       livreur,
     });
   } catch (error) {
@@ -1131,10 +1051,6 @@ exports.adminBloquerLivreur = async (req, res) => {
     });
   }
 };
-
-// =====================================================
-// ADMIN — DÉBLOQUER UN LIVREUR
-// =====================================================
 
 exports.adminDebloquerLivreur = async (req, res) => {
   try {
@@ -1149,14 +1065,7 @@ exports.adminDebloquerLivreur = async (req, res) => {
     }
 
     livreur.bloque = false;
-
-    livreur.actif = true;
-
     livreur.raisonRestriction = "";
-
-    // IMPORTANT :
-    // On ne touche pas au statut opérationnel.
-    // Le livreur choisira lui-même AVAILABLE/OFFLINE.
 
     await livreur.save();
 
@@ -1165,89 +1074,19 @@ exports.adminDebloquerLivreur = async (req, res) => {
     if (io) {
       io.emit("livreur_admin_update", {
         livreurId: livreur._id.toString(),
-
         bloque: false,
-
-        actif: true,
-
         limiteCoursesParJour:
           livreur.limiteCoursesParJour,
-
         statut: livreur.statut,
       });
     }
 
     return res.status(200).json({
       message: "Livreur débloqué",
-
       livreur,
     });
   } catch (error) {
     console.error("ADMIN DEBLOQUER LIVREUR ERROR:", error);
-
-    return res.status(500).json({
-      message: "Erreur serveur",
-    });
-  }
-};
-
-// =====================================================
-// ADMIN — ACTIVER / DÉSACTIVER
-// =====================================================
-
-exports.adminChangerActif = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const { actif } = req.body;
-
-    if (typeof actif !== "boolean") {
-      return res.status(400).json({
-        message: "La valeur actif doit être true ou false",
-      });
-    }
-
-    const livreur = await Livreur.findById(id);
-
-    if (!livreur) {
-      return res.status(404).json({
-        message: "Livreur introuvable",
-      });
-    }
-
-    livreur.actif = actif;
-
-    // IMPORTANT :
-    // On ne modifie PAS livreur.statut ici.
-
-    await livreur.save();
-
-    const io = req.app.get("io");
-
-    if (io) {
-      io.emit("livreur_admin_update", {
-        livreurId: livreur._id.toString(),
-
-        bloque: livreur.bloque,
-
-        actif: livreur.actif,
-
-        limiteCoursesParJour:
-          livreur.limiteCoursesParJour,
-
-        statut: livreur.statut,
-      });
-    }
-
-    return res.status(200).json({
-      message: actif
-        ? "Livreur activé"
-        : "Livreur désactivé",
-
-      livreur,
-    });
-  } catch (error) {
-    console.error("ADMIN ACTIF LIVREUR ERROR:", error);
 
     return res.status(500).json({
       message: "Erreur serveur",

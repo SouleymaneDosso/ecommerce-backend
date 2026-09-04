@@ -46,13 +46,14 @@ const livreurSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
-     bloque: {
+    bloque: {
       type: Boolean,
       default: false,
     },
- limite: {
-      type: Boolean,
-      default: false,
+    limiteCoursesParJour: {
+      type: Number,
+      default: null,
+      min: 0,
     },
 
     raisonRestriction: {

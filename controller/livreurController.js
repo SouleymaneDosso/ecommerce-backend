@@ -410,17 +410,6 @@ exports.accepterCommande = async (req, res) => {
     }
 
     // =====================================================
-    // LE LIVREUR DOIT ÊTRE DISPONIBLE
-    // =====================================================
-
-    if (livreur.statut !== "AVAILABLE") {
-      return res.status(400).json({
-        message:
-          "Vous devez être disponible pour accepter une commande",
-      });
-    }
-
-    // =====================================================
     // ATTRIBUTION
     // =====================================================
 

@@ -224,13 +224,35 @@ const creerCommande = async (req, res) => {
 const getCommandeById = async (req, res) => {
   try {
     const { id } = req.params;
-    const commande = await Commandeapi.findById(id);
-    if (!commande)
-      return res.status(404).json({ message: "Commande introuvable" });
-    res.status(200).json(commande);
+
+    const commande = await Commandeapi.findById(id).populate({
+      path: "livraison.livreurId",
+      select:
+        "username telephone statut localisation commandeActuelle",
+    });
+
+    if (!commande) {
+      return res.status(404).json({
+        message: "Commande introuvable",
+      });
+    }
+
+    const commandeData = commande.toObject();
+
+    if (commandeData.livraison) {
+      commandeData.livraison.livreur =
+        commandeData.livraison.livreurId || null;
+    }
+
+    return res.status(200).json({
+      commande: commandeData,
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Erreur serveur" });
+    console.error("GET COMMANDE ERROR:", err);
+
+    return res.status(500).json({
+      message: "Erreur serveur",
+    });
   }
 };
 

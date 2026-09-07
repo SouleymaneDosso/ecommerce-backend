@@ -2,6 +2,7 @@ const Precommande = require("../models/precommande");
 const Produits = require("../models/produits");
 const Video = require("../models/video");
 const User = require("../models/User");
+const mongoose = require("mongoose");
 
 /* =====================================================
    NUMÉRO DE DÉPÔT
@@ -18,14 +19,18 @@ const getNumeroDepot = () => {
 exports.getModelesPrecommande = async (req, res) => {
   try {
     const produits = await Produits.find({
-      stock: { $lte: 0 },
+      precommande: true,
     })
       .sort({ createdAt: -1 })
       .lean();
 
-    const videos = await Video.find()
-      .sort({ _id: -1 })
-      .lean();
+    const videos = await Video.find({
+      produitId: { $in: produits.map((produit) => produit._id) },
+    }).lean();
+
+    const videoMap = new Map(
+      videos.map((video) => [video.produitId.toString(), video]),
+    );
 
     const result = produits.map((produit) => {
       const imagePrincipale =
@@ -33,11 +38,7 @@ exports.getModelesPrecommande = async (req, res) => {
         produit.images?.[0]?.url ||
         "";
 
-      /*
-       * Pour l'instant on associe la vidéo la plus récente.
-       * On pourra ensuite faire une vraie liaison Produit <-> Video.
-       */
-      const video = videos[0] || null;
+      const video = videoMap.get(produit._id.toString()) || null;
 
       return {
         _id: produit._id,
@@ -57,6 +58,8 @@ exports.getModelesPrecommande = async (req, res) => {
         categorie: produit.categorie,
         genre: produit.genre,
         badge: produit.badge,
+        montantDepot: produit.montantDepot,
+        dateDisponibilite: produit.dateDisponibilite,
       };
     });
 
@@ -64,10 +67,7 @@ exports.getModelesPrecommande = async (req, res) => {
       modeles: result,
     });
   } catch (error) {
-    console.error(
-      "GET MODELES PRECOMMANDE ERROR:",
-      error,
-    );
+    console.error("GET MODELES PRECOMMANDE ERROR:", error);
 
     return res.status(500).json({
       message: "Erreur lors de la récupération des modèles",
@@ -85,8 +85,7 @@ exports.getInformationsDepot = async (req, res) => {
 
     if (!numeroDepot) {
       return res.status(500).json({
-        message:
-          "Le numéro de dépôt n'est pas configuré sur le serveur",
+        message: "Le numéro de dépôt n'est pas configuré sur le serveur",
       });
     }
 
@@ -95,10 +94,7 @@ exports.getInformationsDepot = async (req, res) => {
       services: ["orange", "wave"],
     });
   } catch (error) {
-    console.error(
-      "GET INFOS DEPOT ERROR:",
-      error,
-    );
+    console.error("GET INFOS DEPOT ERROR:", error);
 
     return res.status(500).json({
       message: "Erreur serveur",
@@ -112,16 +108,16 @@ exports.getInformationsDepot = async (req, res) => {
 
 exports.creerPrecommande = async (req, res) => {
   try {
-    const {
-      produitId,
-      service,
-      referenceDepot,
-    } = req.body;
+    const { produitId, service, referenceDepot } = req.body;
 
-    if (!produitId || !service || !referenceDepot) {
+    if (
+      !produitId ||
+      !service ||
+      typeof referenceDepot !== "string" ||
+      !referenceDepot.trim()
+    ) {
       return res.status(400).json({
-        message:
-          "Modèle, service et référence du dépôt sont requis",
+        message: "Modèle, service et référence du dépôt sont requis",
       });
     }
 
@@ -130,8 +126,15 @@ exports.creerPrecommande = async (req, res) => {
         message: "Service de paiement invalide",
       });
     }
-
+if (!mongoose.Types.ObjectId.isValid(produitId)) {
+  return res.status(400).json({
+    message: "Identifiant du modèle invalide",
+  });
+}
     const produit = await Produits.findById(produitId);
+    const video = produit.videoId
+      ? await Video.findById(produit.videoId).lean()
+      : null;
 
     if (!produit) {
       return res.status(404).json({
@@ -139,90 +142,83 @@ exports.creerPrecommande = async (req, res) => {
       });
     }
 
+    if (!produit.precommande) {
+      return res.status(400).json({
+        message: "Ce modèle n'est pas disponible en précommande",
+      });
+    }
+
     const numeroDepot = getNumeroDepot();
 
     if (!numeroDepot) {
       return res.status(500).json({
-        message:
-          "Le numéro de dépôt n'est pas configuré",
+        message: "Le numéro de dépôt n'est pas configuré",
       });
     }
 
-    /*
-     * Éviter qu'un même client envoie plusieurs
-     * précommandes identiques en attente.
-     */
-    const dejaEnAttente =
-      await Precommande.findOne({
-        clientId: req.auth.userId,
-        produitId: produit._id,
-        statut: "PENDING",
-      });
+    const dejaEnAttente = await Precommande.findOne({
+      clientId: req.auth.userId,
+      produitId: produit._id,
+      statut: "PENDING",
+    });
 
     if (dejaEnAttente) {
       return res.status(400).json({
-        message:
-          "Vous avez déjà une précommande en attente pour ce modèle",
+        message: "Vous avez déjà une précommande en attente pour ce modèle",
         precommande: dejaEnAttente,
       });
     }
 
     const imagePrincipale =
-      produit.images?.find(
-        (img) => img.isMain,
-      )?.url ||
+      produit.images?.find((img) => img.isMain)?.url ||
       produit.images?.[0]?.url ||
       "";
 
-    /*
-     * Le montant du dépôt est actuellement calculé
-     * à 30% du prix.
-     */
-    const montantDepot = Math.ceil(
-      Number(produit.price) * 0.3,
-    );
+    const montantDepot =
+      produit.montantDepot !== null && produit.montantDepot !== undefined
+        ? produit.montantDepot
+        : Math.ceil(Number(produit.price) * 0.3);
 
-    const precommande =
-      await Precommande.create({
-        clientId: req.auth.userId,
-
-        produitId: produit._id,
-
-        modele: {
-          title: produit.title,
-          image: imagePrincipale,
-          prix: Number(produit.price),
-          video: "",
-        },
-
-        montantDepot,
-
-        service,
-
-        numeroDepot,
-
-        referenceDepot:
-          referenceDepot.trim(),
-
-        statut: "PENDING",
-
-        submittedAt: new Date(),
+    if (montantDepot <= 0) {
+      return res.status(400).json({
+        message: "Le montant du dépôt doit être supérieur à 0",
       });
+    }
+
+    const precommande = await Precommande.create({
+      clientId: req.auth.userId,
+
+      produitId: produit._id,
+
+      modele: {
+        title: produit.title,
+        image: imagePrincipale,
+        prix: Number(produit.price),
+        video: video?.url || "",
+      },
+
+      montantDepot,
+
+      service,
+
+      numeroDepot,
+
+      referenceDepot: referenceDepot.trim(),
+
+      statut: "PENDING",
+
+      submittedAt: new Date(),
+    });
 
     return res.status(201).json({
-      message:
-        "Précommande envoyée. Elle est en attente de vérification.",
+      message: "Précommande envoyée. Elle est en attente de vérification.",
       precommande,
     });
   } catch (error) {
-    console.error(
-      "CREER PRECOMMANDE ERROR:",
-      error,
-    );
+    console.error("CREER PRECOMMANDE ERROR:", error);
 
     return res.status(500).json({
-      message:
-        "Erreur lors de la création de la précommande",
+      message: "Erreur lors de la création de la précommande",
       error: error.message,
     });
   }
@@ -234,25 +230,20 @@ exports.creerPrecommande = async (req, res) => {
 
 exports.getMesPrecommandes = async (req, res) => {
   try {
-    const precommandes =
-      await Precommande.find({
-        clientId: req.auth.userId,
-      })
-        .sort({ createdAt: -1 })
-        .lean();
+    const precommandes = await Precommande.find({
+      clientId: req.auth.userId,
+    })
+      .sort({ createdAt: -1 })
+      .lean();
 
     return res.status(200).json({
       precommandes,
     });
   } catch (error) {
-    console.error(
-      "GET MES PRECOMMANDES ERROR:",
-      error,
-    );
+    console.error("GET MES PRECOMMANDES ERROR:", error);
 
     return res.status(500).json({
-      message:
-        "Erreur lors de la récupération de vos précommandes",
+      message: "Erreur lors de la récupération de vos précommandes",
     });
   }
 };
@@ -265,11 +256,10 @@ exports.getPrecommandeById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const precommande =
-      await Precommande.findOne({
-        _id: id,
-        clientId: req.auth.userId,
-      }).lean();
+    const precommande = await Precommande.findOne({
+      _id: id,
+      clientId: req.auth.userId,
+    }).lean();
 
     if (!precommande) {
       return res.status(404).json({
@@ -281,10 +271,7 @@ exports.getPrecommandeById = async (req, res) => {
       precommande,
     });
   } catch (error) {
-    console.error(
-      "GET PRECOMMANDE ERROR:",
-      error,
-    );
+    console.error("GET PRECOMMANDE ERROR:", error);
 
     return res.status(500).json({
       message: "Erreur serveur",
@@ -298,31 +285,21 @@ exports.getPrecommandeById = async (req, res) => {
 
 exports.getPrecommandesAdmin = async (req, res) => {
   try {
-    const page =
-      parseInt(req.query.page) || 1;
+    const page = parseInt(req.query.page) || 1;
 
-    const limit =
-      parseInt(req.query.limit) || 20;
+    const limit = parseInt(req.query.limit) || 20;
 
     const skip = (page - 1) * limit;
 
-    const total =
-      await Precommande.countDocuments();
+    const total = await Precommande.countDocuments();
 
-    const precommandes =
-      await Precommande.find()
-        .populate(
-          "clientId",
-          "username email telephone",
-        )
-        .populate(
-          "produitId",
-          "title price images",
-        )
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean();
+    const precommandes = await Precommande.find()
+      .populate("clientId", "username email telephone")
+      .populate("produitId", "title price images")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
 
     return res.status(200).json({
       total,
@@ -331,14 +308,10 @@ exports.getPrecommandesAdmin = async (req, res) => {
       precommandes,
     });
   } catch (error) {
-    console.error(
-      "ADMIN PRECOMMANDES ERROR:",
-      error,
-    );
+    console.error("ADMIN PRECOMMANDES ERROR:", error);
 
     return res.status(500).json({
-      message:
-        "Erreur lors de la récupération des précommandes",
+      message: "Erreur lors de la récupération des précommandes",
     });
   }
 };
@@ -352,8 +325,7 @@ exports.accepterPrecommande = async (req, res) => {
     const { id } = req.params;
     const { adminComment } = req.body;
 
-    const precommande =
-      await Precommande.findById(id);
+    const precommande = await Precommande.findById(id);
 
     if (!precommande) {
       return res.status(404).json({
@@ -369,19 +341,16 @@ exports.accepterPrecommande = async (req, res) => {
 
     if (precommande.statut === "REJECTED") {
       return res.status(400).json({
-        message:
-          "Une précommande refusée ne peut pas être acceptée",
+        message: "Une précommande refusée ne peut pas être acceptée",
       });
     }
 
     precommande.statut = "ACCEPTED";
-    precommande.adminComment =
-      adminComment || "";
+    precommande.adminComment = adminComment || "";
     precommande.verifieAt = new Date();
 
     if (req.admin?._id) {
-      precommande.verifiePar =
-        req.admin._id;
+      precommande.verifiePar = req.admin._id;
     }
 
     await precommande.save();
@@ -391,14 +360,10 @@ exports.accepterPrecommande = async (req, res) => {
       precommande,
     });
   } catch (error) {
-    console.error(
-      "ACCEPTER PRECOMMANDE ERROR:",
-      error,
-    );
+    console.error("ACCEPTER PRECOMMANDE ERROR:", error);
 
     return res.status(500).json({
-      message:
-        "Erreur lors de l'acceptation",
+      message: "Erreur lors de l'acceptation",
     });
   }
 };
@@ -412,8 +377,7 @@ exports.refuserPrecommande = async (req, res) => {
     const { id } = req.params;
     const { adminComment } = req.body;
 
-    const precommande =
-      await Precommande.findById(id);
+    const precommande = await Precommande.findById(id);
 
     if (!precommande) {
       return res.status(404).json({
@@ -423,8 +387,7 @@ exports.refuserPrecommande = async (req, res) => {
 
     if (precommande.statut === "ACCEPTED") {
       return res.status(400).json({
-        message:
-          "Une précommande déjà acceptée ne peut pas être refusée",
+        message: "Une précommande déjà acceptée ne peut pas être refusée",
       });
     }
 
@@ -435,13 +398,11 @@ exports.refuserPrecommande = async (req, res) => {
     }
 
     precommande.statut = "REJECTED";
-    precommande.adminComment =
-      adminComment || "";
+    precommande.adminComment = adminComment || "";
     precommande.verifieAt = new Date();
 
     if (req.admin?._id) {
-      precommande.verifiePar =
-        req.admin._id;
+      precommande.verifiePar = req.admin._id;
     }
 
     await precommande.save();
@@ -451,14 +412,10 @@ exports.refuserPrecommande = async (req, res) => {
       precommande,
     });
   } catch (error) {
-    console.error(
-      "REFUSER PRECOMMANDE ERROR:",
-      error,
-    );
+    console.error("REFUSER PRECOMMANDE ERROR:", error);
 
     return res.status(500).json({
-      message:
-        "Erreur lors du refus",
+      message: "Erreur lors du refus",
     });
   }
 };

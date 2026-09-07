@@ -1,10 +1,9 @@
 const express = require("express");
-
 const router = express.Router();
 
 const ajoutervideo = require("../controller/video");
-
 const multer = require("../config/multer");
+const authAdmin = require("../authentification/authAdmin");
 
 // ======================================
 // VIDÉOS SOUS-HERO — EXISTANT
@@ -12,6 +11,7 @@ const multer = require("../config/multer");
 
 router.post(
   "/upload",
+  authAdmin,
   multer.array("videos"),
   ajoutervideo.uploadervideo
 );
@@ -22,6 +22,7 @@ router.post(
 
 router.post(
   "/upload-produit",
+  authAdmin,
   multer.array("video", 1),
   ajoutervideo.uploadVideoProduit
 );
@@ -32,6 +33,7 @@ router.post(
 
 router.get(
   "/videos",
+  authAdmin,
   ajoutervideo.getVideos
 );
 
@@ -41,6 +43,7 @@ router.get(
 
 router.delete(
   "/videos/:id",
+  authAdmin,
   ajoutervideo.deletevideo
 );
 

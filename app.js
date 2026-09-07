@@ -15,11 +15,12 @@ const commandeRoutes = require("./router/commandeRoutes");
 const produitsClient = require("./router/clientRouteProduits");
 const favorites = require("./router/favoritesRoute");
 const userRoutes = require("./router/userRoutes");
-const resetPassword = require("./router/authRoutes")
-const  newsletterRoute = require("./router/newsletter")
+const resetPassword = require("./router/authRoutes");
+const newsletterRoute = require("./router/newsletter");
 const cookieRoutes = require("./router/cookieRoutes");
 const videoRoutes = require("./router/video");
 const livreurRoutes = require("./router/livreurRoutes");
+const precommandeRoutes = require("./router/precommandeRoutes");
 // ===============================
 // DATABASE
 // ===============================
@@ -54,7 +55,7 @@ app.use(
       return callback(null, false);
     },
     credentials: true,
-  })
+  }),
 );
 
 // Body parsers - augmenter la limite pour gros panier ou images
@@ -67,7 +68,7 @@ app.use(cookieParser());
 // ===============================
 app.use("/api/user", userRoutes);
 app.use("/api/compte", compteClient);
-app.use("/api/auth", resetPassword );
+app.use("/api/auth", resetPassword);
 app.use("/api", commandeRoutes);
 app.use("/api/admin", singnupdmin);
 app.use("/api/produits", produitsAdmin);
@@ -77,6 +78,7 @@ app.use("/api/newsletter", newsletterRoute);
 app.use("/api/cookies", cookieRoutes);
 app.use("/api/videos", videoRoutes);
 app.use("/api/livreurs", livreurRoutes);
+app.use("/api/precommandes", precommandeRoutes);
 // ===============================
 // GESTION ERREURS
 // ===============================

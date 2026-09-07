@@ -6,7 +6,7 @@ const imageSchema = new mongoose.Schema(
     publicId: { type: String, required: true }, // pour suppression Cloudinary
     isMain: { type: Boolean, default: false }, // image principale
   },
-  { _id: false }
+  { _id: false },
 );
 
 const schemaproduits = new mongoose.Schema(
@@ -65,15 +65,37 @@ const schemaproduits = new mongoose.Schema(
       enum: ["new", "promo", null],
       default: null,
     },
-details: {
-  type: Map,
-  of: String
-}
+    details: {
+      type: Map,
+      of: String,
+    },
+    videoId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Video",
+      default: null,
+    },
+
+    precommande: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
+    montantDepot: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
+
+    dateDisponibilite: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
     toJSON: { virtuals: true }, // ✅ active les virtuals dans JSON
     toObject: { virtuals: true }, // ✅ active les virtuals dans toObject
-  }
+  },
 );
 module.exports = mongoose.model("Produits", schemaproduits);

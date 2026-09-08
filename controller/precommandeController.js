@@ -4,17 +4,6 @@ const Video = require("../models/video");
 const User = require("../models/User");
 const mongoose = require("mongoose");
 
-/* =====================================================
-   NUMÉRO DE DÉPÔT
-===================================================== */
-
-const getNumeroDepot = () => {
-  const numero = process.env.PRECOMMANDE_NUMERO_DEPOT;
-
-  console.log("NUMERO DEPOT ENV :", numero);
-
-  return numero ? numero.trim() : "";
-};
 
 /* =====================================================
    MODÈLES À VENIR

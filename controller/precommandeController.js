@@ -9,7 +9,11 @@ const mongoose = require("mongoose");
 ===================================================== */
 
 const getNumeroDepot = () => {
-  return process.env.PRECOMMANDE_NUMERO_DEPOT || "";
+  const numero = process.env.PRECOMMANDE_NUMERO_DEPOT;
+
+  console.log("NUMERO DEPOT ENV :", numero);
+
+  return numero ? numero.trim() : "";
 };
 
 /* =====================================================
@@ -84,7 +88,13 @@ exports.getModelesPrecommande = async (req, res) => {
 
 exports.getInformationsDepot = async (req, res) => {
   try {
-    const numeroDepot = getNumeroDepot();
+    const numeroDepot =  () => {
+  const numero = process.env.PRECOMMANDE_NUMERO_DEPOT;
+
+  console.log("NUMERO DEPOT ENV :", numero);
+
+  return numero ? numero.trim() : "";
+};
 
     if (!numeroDepot) {
       return res.status(500).json({

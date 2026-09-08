@@ -47,4 +47,9 @@ router.delete(
   ajoutervideo.deletevideo
 );
 
+router.get(
+  "/produits",
+  ajoutervideo.getVideosProduitsPublic
+);
+
 module.exports = router;

@@ -206,6 +206,32 @@ exports.getVideos = async (req, res) => {
   }
 };
 
+/* =====================================================
+   GET VIDÉOS PRODUITS — PUBLIC
+===================================================== */
+
+exports.getVideosProduitsPublic = async (req, res) => {
+  try {
+    const videos = await Video.find({
+      produitId: { $ne: null },
+    })
+      .populate("produitId", "title")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      message: "Vidéos produits récupérées avec succès.",
+      videos,
+    });
+  } catch (error) {
+    console.error("GET VIDEOS PRODUITS PUBLIC ERROR:", error);
+
+    return res.status(500).json({
+      message: "Erreur lors de la récupération des vidéos produits.",
+    });
+  }
+};
+
 
 /* =====================================================
    SUPPRESSION VIDÉO

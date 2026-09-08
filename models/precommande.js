@@ -19,6 +19,7 @@ const precommandeSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Produits",
       required: true,
+      index: true,
     },
 
     modele: {
@@ -45,8 +46,32 @@ const precommandeSchema = new mongoose.Schema(
     },
 
     /* =========================
+       VARIATION COMMANDÉE
+    ========================= */
+
+    taille: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    couleur: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    quantite: {
+      type: Number,
+      required: true,
+      min: 1,
+      default: 1,
+    },
+
+    /* =========================
        DÉPÔT
     ========================= */
+
     montantDepot: {
       type: Number,
       required: true,
@@ -62,6 +87,7 @@ const precommandeSchema = new mongoose.Schema(
     numeroDepot: {
       type: String,
       required: true,
+      trim: true,
     },
 
     referenceDepot: {
@@ -73,6 +99,7 @@ const precommandeSchema = new mongoose.Schema(
     /* =========================
        STATUT
     ========================= */
+
     statut: {
       type: String,
       enum: ["PENDING", "ACCEPTED", "REJECTED"],
@@ -83,6 +110,7 @@ const precommandeSchema = new mongoose.Schema(
     /* =========================
        ADMIN
     ========================= */
+
     adminComment: {
       type: String,
       default: "",
@@ -100,6 +128,10 @@ const precommandeSchema = new mongoose.Schema(
       default: null,
     },
 
+    /* =========================
+       DATE DE SOUMISSION
+    ========================= */
+
     submittedAt: {
       type: Date,
       default: Date.now,
@@ -107,7 +139,7 @@ const precommandeSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  },
+  }
 );
 
 /* =========================
@@ -124,7 +156,12 @@ precommandeSchema.index({
   createdAt: -1,
 });
 
+precommandeSchema.index({
+  produitId: 1,
+  statut: 1,
+});
+
 module.exports = mongoose.model(
   "Precommande",
-  precommandeSchema,
+  precommandeSchema
 );

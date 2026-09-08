@@ -108,33 +108,90 @@ exports.getInformationsDepot = async (req, res) => {
 
 exports.creerPrecommande = async (req, res) => {
   try {
-    const { produitId, service, referenceDepot } = req.body;
+    const {
+      produitId,
+      service,
+      numeroDepot,
+      referenceDepot,
+      taille,
+      couleur,
+      quantite,
+    } = req.body;
+
+    /* =========================
+       VALIDATION DE BASE
+    ========================= */
+
+    if (!produitId) {
+      return res.status(400).json({
+        message: "Le modèle est requis",
+      });
+    }
+
+    if (!service) {
+      return res.status(400).json({
+        message: "Le service de paiement est requis",
+      });
+    }
 
     if (
-      !produitId ||
-      !service ||
       typeof referenceDepot !== "string" ||
       !referenceDepot.trim()
     ) {
       return res.status(400).json({
-        message: "Modèle, service et référence du dépôt sont requis",
+        message: "La référence du dépôt est requise",
       });
     }
+
+    if (
+      typeof numeroDepot !== "string" ||
+      !numeroDepot.trim()
+    ) {
+      return res.status(400).json({
+        message: "Le numéro utilisé pour le dépôt est requis",
+      });
+    }
+
+    /* =========================
+       VALIDATION SERVICE
+    ========================= */
 
     if (!["orange", "wave"].includes(service)) {
       return res.status(400).json({
         message: "Service de paiement invalide",
       });
     }
-if (!mongoose.Types.ObjectId.isValid(produitId)) {
-  return res.status(400).json({
-    message: "Identifiant du modèle invalide",
-  });
-}
+
+    /* =========================
+       VALIDATION ID
+    ========================= */
+
+    if (!mongoose.Types.ObjectId.isValid(produitId)) {
+      return res.status(400).json({
+        message: "Identifiant du modèle invalide",
+      });
+    }
+
+    /* =========================
+       QUANTITÉ
+    ========================= */
+
+    const quantiteFinale = Number(quantite);
+
+    if (
+      !Number.isInteger(quantiteFinale) ||
+      quantiteFinale < 1
+    ) {
+      return res.status(400).json({
+        message: "La quantité doit être un nombre entier supérieur à 0",
+      });
+    }
+
+    /* =========================
+       RÉCUPÉRATION PRODUIT
+    ========================= */
+
     const produit = await Produits.findById(produitId);
-    const video = produit.videoId
-      ? await Video.findById(produit.videoId).lean()
-      : null;
 
     if (!produit) {
       return res.status(404).json({
@@ -142,83 +199,301 @@ if (!mongoose.Types.ObjectId.isValid(produitId)) {
       });
     }
 
+    /* =========================
+       VÉRIFICATION PRÉCOMMANDE
+    ========================= */
+
     if (!produit.precommande) {
       return res.status(400).json({
-        message: "Ce modèle n'est pas disponible en précommande",
+        message:
+          "Ce modèle n'est pas disponible en précommande",
       });
     }
 
-    const numeroDepot = getNumeroDepot();
+    /* =========================
+       VALIDATION TAILLE
+    ========================= */
 
-    if (!numeroDepot) {
+    if (
+      Array.isArray(produit.tailles) &&
+      produit.tailles.length > 0
+    ) {
+      if (!taille) {
+        return res.status(400).json({
+          message: "Veuillez sélectionner une taille",
+        });
+      }
+
+      if (!produit.tailles.includes(taille)) {
+        return res.status(400).json({
+          message: "La taille sélectionnée est invalide",
+        });
+      }
+    }
+
+    /* =========================
+       VALIDATION COULEUR
+    ========================= */
+
+    if (
+      Array.isArray(produit.couleurs) &&
+      produit.couleurs.length > 0
+    ) {
+      if (!couleur) {
+        return res.status(400).json({
+          message: "Veuillez sélectionner une couleur",
+        });
+      }
+
+      if (!produit.couleurs.includes(couleur)) {
+        return res.status(400).json({
+          message: "La couleur sélectionnée est invalide",
+        });
+      }
+    }
+
+    /* =========================
+       STOCK PAR VARIATION
+    ========================= */
+
+    let stockDisponible = 0;
+
+    const stockParVariation = produit.stockParVariation;
+
+    if (
+      stockParVariation &&
+      taille
+    ) {
+      let variationTaille = null;
+
+      /*
+        Mongoose Map
+      */
+      if (
+        typeof stockParVariation.get === "function"
+      ) {
+        variationTaille =
+          stockParVariation.get(taille);
+      } else {
+        /*
+          Objet JSON
+        */
+        variationTaille =
+          stockParVariation[taille];
+      }
+
+      /* =========================
+         AVEC COULEUR
+      ========================= */
+
+      if (couleur) {
+        if (variationTaille) {
+          if (
+            typeof variationTaille.get === "function"
+          ) {
+            stockDisponible = Number(
+              variationTaille.get(couleur) || 0
+            );
+          } else {
+            stockDisponible = Number(
+              variationTaille[couleur] || 0
+            );
+          }
+        }
+      }
+
+      /* =========================
+         SANS COULEUR
+      ========================= */
+
+      else {
+        if (
+          typeof variationTaille === "number"
+        ) {
+          stockDisponible = variationTaille;
+        } else if (
+          variationTaille?.general !== undefined
+        ) {
+          stockDisponible = Number(
+            variationTaille.general || 0
+          );
+        }
+      }
+    }
+
+    /* =========================
+       VÉRIFICATION STOCK
+    ========================= */
+
+    if (stockDisponible <= 0) {
+      return res.status(400).json({
+        message:
+          "Cette variation n'est actuellement plus disponible",
+      });
+    }
+
+    if (quantiteFinale > stockDisponible) {
+      return res.status(400).json({
+        message: `Stock insuffisant. Il reste seulement ${stockDisponible} article(s) pour cette variation.`,
+      });
+    }
+
+    /* =========================
+       NUMÉRO DE DÉPÔT
+    ========================= */
+
+    const numeroDepotAdmin = getNumeroDepot();
+
+    if (!numeroDepotAdmin) {
       return res.status(500).json({
-        message: "Le numéro de dépôt n'est pas configuré",
+        message:
+          "Le numéro de dépôt n'est pas configuré",
       });
     }
 
-    const dejaEnAttente = await Precommande.findOne({
-      clientId: req.auth.userId,
-      produitId: produit._id,
-      statut: "PENDING",
-    });
+    /* =========================
+       PRÉCOMMANDE EXISTANTE
+    ========================= */
+
+    const dejaEnAttente =
+      await Precommande.findOne({
+        clientId: req.auth.userId,
+        produitId: produit._id,
+        statut: "PENDING",
+      });
 
     if (dejaEnAttente) {
       return res.status(400).json({
-        message: "Vous avez déjà une précommande en attente pour ce modèle",
+        message:
+          "Vous avez déjà une précommande en attente pour ce modèle",
         precommande: dejaEnAttente,
       });
     }
 
+    /* =========================
+       IMAGE PRINCIPALE
+    ========================= */
+
     const imagePrincipale =
-      produit.images?.find((img) => img.isMain)?.url ||
+      produit.images?.find(
+        (img) => img.isMain
+      )?.url ||
       produit.images?.[0]?.url ||
       "";
 
-    const montantDepot =
-      produit.montantDepot !== null && produit.montantDepot !== undefined
-        ? produit.montantDepot
-        : Math.ceil(Number(produit.price) * 0.3);
+    /* =========================
+       VIDÉO
+    ========================= */
 
-    if (montantDepot <= 0) {
+    const video = produit.videoId
+      ? await Video.findById(
+          produit.videoId
+        ).lean()
+      : null;
+
+    /* =========================
+       DÉPÔT UNITAIRE
+    ========================= */
+
+    const montantDepotUnitaire =
+      produit.montantDepot !== null &&
+      produit.montantDepot !== undefined
+        ? Number(produit.montantDepot)
+        : Math.ceil(
+            Number(produit.price) * 0.3
+          );
+
+    if (montantDepotUnitaire <= 0) {
       return res.status(400).json({
-        message: "Le montant du dépôt doit être supérieur à 0",
+        message:
+          "Le montant du dépôt doit être supérieur à 0",
       });
     }
 
-    const precommande = await Precommande.create({
-      clientId: req.auth.userId,
+    /* =========================
+       DÉPÔT TOTAL
+    ========================= */
 
-      produitId: produit._id,
+    const montantDepot =
+      montantDepotUnitaire *
+      quantiteFinale;
 
-      modele: {
-        title: produit.title,
-        image: imagePrincipale,
-        prix: Number(produit.price),
-        video: video?.url || "",
-      },
+    /* =========================
+       CRÉATION
+    ========================= */
 
-      montantDepot,
+    const precommande =
+      await Precommande.create({
+        clientId: req.auth.userId,
 
-      service,
+        produitId: produit._id,
 
-      numeroDepot,
+        modele: {
+          title: produit.title,
 
-      referenceDepot: referenceDepot.trim(),
+          image: imagePrincipale,
 
-      statut: "PENDING",
+          prix: Number(produit.price),
 
-      submittedAt: new Date(),
-    });
+          video: video?.url || "",
+        },
+
+        /* =========================
+           VARIATION
+        ========================= */
+
+        taille: taille || "",
+
+        couleur: couleur || "",
+
+        quantite: quantiteFinale,
+
+        /* =========================
+           DÉPÔT
+        ========================= */
+
+        montantDepot,
+
+        service,
+
+        /*
+          On conserve le numéro du client
+          qui a effectué le dépôt.
+        */
+        numeroDepot: numeroDepot.trim(),
+
+        referenceDepot:
+          referenceDepot.trim(),
+
+        /* =========================
+           STATUT
+        ========================= */
+
+        statut: "PENDING",
+
+        submittedAt: new Date(),
+      });
+
+    /* =========================
+       RÉPONSE
+    ========================= */
 
     return res.status(201).json({
-      message: "Précommande envoyée. Elle est en attente de vérification.",
+      message:
+        "Précommande envoyée. Elle est en attente de vérification.",
+
       precommande,
     });
   } catch (error) {
-    console.error("CREER PRECOMMANDE ERROR:", error);
+    console.error(
+      "CREER PRECOMMANDE ERROR:",
+      error
+    );
 
     return res.status(500).json({
-      message: "Erreur lors de la création de la précommande",
+      message:
+        "Erreur lors de la création de la précommande",
+
       error: error.message,
     });
   }

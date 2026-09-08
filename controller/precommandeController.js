@@ -84,7 +84,13 @@ exports.getModelesPrecommande = async (req, res) => {
 
 exports.getInformationsDepot = async (req, res) => {
   try {
-    const numeroDepot = getNumeroDepot();
+    const getNumeroDepot = () => {
+      const numero = process.env.PRECOMMANDE_NUMERO_DEPOT;
+
+      console.log("NUMERO DEPOT ENV :", numero);
+
+      return numero ? numero.trim() : "";
+    };
 
     if (!numeroDepot) {
       return res.status(500).json({
@@ -275,8 +281,7 @@ exports.creerPrecommande = async (req, res) => {
           }
         }
       } else {
-
-      /* =========================
+        /* =========================
          SANS COULEUR
       ========================= */
         if (typeof variationTaille === "number") {

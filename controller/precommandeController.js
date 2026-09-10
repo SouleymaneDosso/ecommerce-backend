@@ -240,48 +240,26 @@ exports.creerPrecommande = async (req, res) => {
        STOCK PAR VARIATION
     ========================= */
 
-    let stockDisponible = 0;
+let stockDisponible = 0;
+const stockParVariation = produit.stockParVariation;
 
-    const stockParVariation = produit.stockParVariation;
+if (stockParVariation && taille) {
+  if (couleur) {
+    const variationCouleur = stockParVariation.get(couleur);
 
-    if (stockParVariation && taille) {
-      let variationTaille = null;
-
-      /*
-        Mongoose Map
-      */
-      if (typeof stockParVariation.get === "function") {
-        variationTaille = stockParVariation.get(taille);
-      } else {
-        /*
-          Objet JSON
-        */
-        variationTaille = stockParVariation[taille];
-      }
-
-      /* =========================
-         AVEC COULEUR
-      ========================= */
-
-      if (couleur) {
-        if (variationTaille) {
-          if (typeof variationTaille.get === "function") {
-            stockDisponible = Number(variationTaille.get(couleur) || 0);
-          } else {
-            stockDisponible = Number(variationTaille[couleur] || 0);
-          }
-        }
-      } else {
-        /* =========================
-         SANS COULEUR
-      ========================= */
-        if (typeof variationTaille === "number") {
-          stockDisponible = variationTaille;
-        } else if (variationTaille?.general !== undefined) {
-          stockDisponible = Number(variationTaille.general || 0);
-        }
-      }
+    if (variationCouleur) {
+      stockDisponible = Number(
+        variationCouleur.get(taille) || 0
+      );
     }
+  } else {
+    for (const variationCouleur of stockParVariation.values()) {
+      stockDisponible += Number(
+        variationCouleur.get(taille) || 0
+      );
+    }
+  }
+}
 
     /* =========================
        VÉRIFICATION STOCK

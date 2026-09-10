@@ -14,6 +14,10 @@ const {
   getPrecommandesAdmin,
   accepterPrecommande,
   refuserPrecommande,
+  rendreProduitDisponible,
+  payerSoldePrecommande,
+   confirmerSoldePrecommande,
+  rejeterSoldePrecommande,
 } = require("../controller/precommandeController");
 
 /* =====================================================
@@ -93,6 +97,30 @@ router.put(
   "/admin/:id/refuser",
   authAdmin,
   refuserPrecommande,
+);
+
+router.put(
+  "/admin/:id/rendre-disponible",
+  authAdmin,
+  rendreProduitDisponible,
+);
+
+router.put(
+  "/:id/payer-solde",
+  authClient,
+  payerSoldePrecommande,
+);
+
+router.put(
+  "/admin/:id/confirmer-solde",
+  authAdmin,
+  confirmerSoldePrecommande
+);
+
+router.put(
+  "/admin/:id/rejeter-solde",
+  authAdmin,
+  rejeterSoldePrecommande
 );
 
 module.exports = router;

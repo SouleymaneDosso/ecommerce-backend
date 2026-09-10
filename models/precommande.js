@@ -1,10 +1,86 @@
 const mongoose = require("mongoose");
 
+/* =====================================================
+   PAIEMENT DU DÉPÔT / SOLDE
+===================================================== */
+
+const PaiementPrecommandeSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ["DEPOT", "SOLDE"],
+      required: true,
+    },
+
+    service: {
+      type: String,
+      enum: ["orange", "wave"],
+      required: true,
+    },
+
+    numeroClient: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    reference: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    montantEnvoye: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
+    montantAttendu: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
+    status: {
+      type: String,
+      enum: ["PENDING", "CONFIRMED", "REJECTED"],
+      default: "PENDING",
+    },
+
+    adminComment: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    submittedAt: {
+      type: Date,
+      default: Date.now,
+    },
+
+    confirmedAt: {
+      type: Date,
+      default: null,
+    },
+  },
+  {
+    _id: true,
+    timestamps: false,
+  }
+);
+
+
+/* =====================================================
+   PRÉCOMMANDE
+===================================================== */
+
 const precommandeSchema = new mongoose.Schema(
   {
     /* =========================
        CLIENT
     ========================= */
+
     clientId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -12,15 +88,22 @@ const precommandeSchema = new mongoose.Schema(
       index: true,
     },
 
+
     /* =========================
-       MODÈLE PRÉCOMMANDÉ
+       PRODUIT
     ========================= */
+
     produitId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Produits",
       required: true,
       index: true,
     },
+
+
+    /* =========================
+       SNAPSHOT PRODUIT
+    ========================= */
 
     modele: {
       title: {
@@ -45,8 +128,9 @@ const precommandeSchema = new mongoose.Schema(
       },
     },
 
+
     /* =========================
-       VARIATION COMMANDÉE
+       VARIATION
     ========================= */
 
     taille: {
@@ -68,9 +152,16 @@ const precommandeSchema = new mongoose.Schema(
       default: 1,
     },
 
+
     /* =========================
-       DÉPÔT
+       MONTANTS
     ========================= */
+
+    montantTotal: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
 
     montantDepot: {
       type: Number,
@@ -78,34 +169,64 @@ const precommandeSchema = new mongoose.Schema(
       min: 0,
     },
 
-    service: {
-      type: String,
-      enum: ["orange", "wave"],
+    montantSolde: {
+      type: Number,
       required: true,
+      min: 0,
     },
 
-    numeroDepot: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    referenceDepot: {
-      type: String,
-      required: true,
-      trim: true,
-    },
 
     /* =========================
-       STATUT
+       PAIEMENTS
+    ========================= */
+
+    paiements: {
+      type: [PaiementPrecommandeSchema],
+      default: [],
+    },
+
+
+    /* =========================
+       STATUT PRÉCOMMANDE
     ========================= */
 
     statut: {
       type: String,
-      enum: ["PENDING", "ACCEPTED", "REJECTED"],
+      enum: [
+        "PENDING",
+        "ACCEPTED",
+        "READY_TO_FINALIZE",
+        "FINALIZATION_PENDING",
+        "FINALIZED",
+        "REJECTED",
+        "CANCELLED",
+      ],
       default: "PENDING",
       index: true,
     },
+
+
+    /* =========================
+       DISPONIBILITÉ
+    ========================= */
+
+    disponiblePourFinalisation: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
+
+    /* =========================
+       COMMANDE FINALE
+    ========================= */
+
+    commandeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Commandeapi",
+      default: null,
+    },
+
 
     /* =========================
        ADMIN
@@ -128,6 +249,7 @@ const precommandeSchema = new mongoose.Schema(
       default: null,
     },
 
+
     /* =========================
        DATE DE SOUMISSION
     ========================= */
@@ -142,9 +264,10 @@ const precommandeSchema = new mongoose.Schema(
   }
 );
 
-/* =========================
+
+/* =====================================================
    INDEX
-========================= */
+===================================================== */
 
 precommandeSchema.index({
   clientId: 1,
@@ -160,6 +283,12 @@ precommandeSchema.index({
   produitId: 1,
   statut: 1,
 });
+
+precommandeSchema.index({
+  clientId: 1,
+  statut: 1,
+});
+
 
 module.exports = mongoose.model(
   "Precommande",

@@ -86,6 +86,11 @@ const schemaproduits = new mongoose.Schema(
       default: null,
       min: 0,
     },
+    disponible: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
 
     dateDisponibilite: {
       type: Date,

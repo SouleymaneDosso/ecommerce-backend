@@ -68,6 +68,10 @@ exports.sauvegarderProduits = async (req, res) => {
 
       // NOUVEAUX CHAMPS
       precommande: req.body.precommande === "true",
+      disponible:
+        req.body.disponible !== undefined
+          ? req.body.disponible === "true"
+          : !(req.body.precommande === "true"),
       montantDepot:
         req.body.montantDepot !== undefined && req.body.montantDepot !== ""
           ? Number(req.body.montantDepot)
@@ -155,44 +159,36 @@ exports.updateProduit = async (req, res) => {
       "badge",
       "details",
       "hero",
+      "disponible",
       "precommande",
       "montantDepot",
       "dateDisponibilite",
       "videoId",
     ];
 
-   champs.forEach((field) => {
-  if (req.body[field] !== undefined) {
-    if (
-      ["tailles", "couleurs", "stockParVariation"].includes(field)
-    ) {
-      produit[field] = safeParse(req.body[field], []);
-    } else if (field === "details") {
-      produit[field] = safeParse(req.body[field], {});
-    } else if (
-      field === "hero" ||
-      field === "precommande"
-    ) {
-      produit[field] = req.body[field] === "true";
-    } else if (
-      field === "price" ||
-      field === "stock" ||
-      field === "montantDepot"
-    ) {
-      produit[field] =
-        req.body[field] === ""
-          ? null
-          : Number(req.body[field]);
-    } else if (field === "dateDisponibilite") {
-      produit[field] =
-        req.body[field] === ""
-          ? null
-          : new Date(req.body[field]);
-    } else {
-      produit[field] = req.body[field];
-    }
-  }
-});
+    champs.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        if (["tailles", "couleurs", "stockParVariation"].includes(field)) {
+          produit[field] = safeParse(req.body[field], []);
+        } else if (field === "details") {
+          produit[field] = safeParse(req.body[field], {});
+        } else if (field === "hero" || field === "precommande" || field === "disponible") {
+          produit[field] = req.body[field] === "true";
+        } else if (
+          field === "price" ||
+          field === "stock" ||
+          field === "montantDepot"
+        ) {
+          produit[field] =
+            req.body[field] === "" ? null : Number(req.body[field]);
+        } else if (field === "dateDisponibilite") {
+          produit[field] =
+            req.body[field] === "" ? null : new Date(req.body[field]);
+        } else {
+          produit[field] = req.body[field];
+        }
+      }
+    });
 
     await produit.save();
     res.status(200).json(produit.toJSON());

@@ -528,7 +528,7 @@ exports.accepterPrecommande = async (req, res) => {
     ========================= */
 
     const paiementDepot = precommande.paiements.find(
-      (paiement) => paiement.type === "DEPOT"
+      (paiement) => paiement.type === "DEPOT",
     );
 
     if (!paiementDepot) {
@@ -558,8 +558,7 @@ exports.accepterPrecommande = async (req, res) => {
       Number(paiementDepot.montantAttendu)
     ) {
       return res.status(400).json({
-        message:
-          "Le montant du dépôt ne correspond pas au montant attendu",
+        message: "Le montant du dépôt ne correspond pas au montant attendu",
       });
     }
 
@@ -567,9 +566,7 @@ exports.accepterPrecommande = async (req, res) => {
        VÉRIFICATION DU PRODUIT
     ========================= */
 
-    const produit = await Produits.findById(
-      precommande.produitId
-    );
+    const produit = await Produits.findById(precommande.produitId);
 
     if (!produit) {
       return res.status(404).json({
@@ -617,14 +614,10 @@ exports.accepterPrecommande = async (req, res) => {
       precommande,
     });
   } catch (error) {
-    console.error(
-      "ACCEPTER PRECOMMANDE ERROR:",
-      error
-    );
+    console.error("ACCEPTER PRECOMMANDE ERROR:", error);
 
     return res.status(500).json({
-      message:
-        "Erreur lors de la confirmation du dépôt",
+      message: "Erreur lors de la confirmation du dépôt",
     });
   }
 };
@@ -806,12 +799,7 @@ exports.rendreProduitDisponible = async (req, res) => {
 exports.payerSoldePrecommande = async (req, res) => {
   try {
     const { id } = req.params;
-    const {
-      service,
-      numeroClient,
-      reference,
-      montantEnvoye,
-    } = req.body;
+    const { service, numeroClient, reference, montantEnvoye } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -862,7 +850,7 @@ exports.payerSoldePrecommande = async (req, res) => {
     const paiementSoldeExistant = precommande.paiements.find(
       (paiement) =>
         paiement.type === "SOLDE" &&
-        ["PENDING", "CONFIRMED"].includes(paiement.status)
+        ["PENDING", "CONFIRMED"].includes(paiement.status),
     );
 
     if (paiementSoldeExistant) {
@@ -917,10 +905,7 @@ exports.payerSoldePrecommande = async (req, res) => {
       precommande,
     });
   } catch (error) {
-    console.error(
-      "Erreur payerSoldePrecommande:",
-      error
-    );
+    console.error("Erreur payerSoldePrecommande:", error);
 
     return res.status(500).json({
       message: "Erreur serveur.",
@@ -937,6 +922,10 @@ exports.confirmerSoldePrecommande = async (req, res) => {
 
     const { id } = req.params;
 
+    /* =====================================================
+       VALIDATION ID
+    ===================================================== */
+
     if (!mongoose.Types.ObjectId.isValid(id)) {
       await session.abortTransaction();
 
@@ -944,6 +933,10 @@ exports.confirmerSoldePrecommande = async (req, res) => {
         message: "ID de précommande invalide.",
       });
     }
+
+    /* =====================================================
+       PRÉCOMMANDE
+    ===================================================== */
 
     const precommande = await Precommande.findById(id).session(session);
 
@@ -955,6 +948,10 @@ exports.confirmerSoldePrecommande = async (req, res) => {
       });
     }
 
+    /* =====================================================
+       VÉRIFICATION STATUT
+    ===================================================== */
+
     if (precommande.statut !== "FINALIZATION_PENDING") {
       await session.abortTransaction();
 
@@ -964,6 +961,10 @@ exports.confirmerSoldePrecommande = async (req, res) => {
       });
     }
 
+    /* =====================================================
+       COMMANDE DÉJÀ CRÉÉE
+    ===================================================== */
+
     if (precommande.commandeId) {
       await session.abortTransaction();
 
@@ -972,12 +973,15 @@ exports.confirmerSoldePrecommande = async (req, res) => {
       });
     }
 
+    /* =====================================================
+       DERNIER PAIEMENT SOLDE
+    ===================================================== */
+
     const paiementSolde = [...precommande.paiements]
       .reverse()
       .find(
         (paiement) =>
-          paiement.type === "SOLDE" &&
-          paiement.status === "PENDING"
+          paiement.type === "SOLDE" && paiement.status === "PENDING",
       );
 
     if (!paiementSolde) {
@@ -988,20 +992,35 @@ exports.confirmerSoldePrecommande = async (req, res) => {
       });
     }
 
+    /* =====================================================
+       VÉRIFICATION MONTANT
+    ===================================================== */
+
+    const montantEnvoye = Number(paiementSolde.montantEnvoye);
+
+    const montantAttendu = Number(paiementSolde.montantAttendu);
+
     if (
-      Number(paiementSolde.montantEnvoye) !==
-      Number(paiementSolde.montantAttendu)
+      !Number.isFinite(montantEnvoye) ||
+      !Number.isFinite(montantAttendu) ||
+      montantEnvoye !== montantAttendu
     ) {
       await session.abortTransaction();
 
       return res.status(400).json({
         message: "Le montant du solde ne correspond pas au montant attendu.",
+        montantEnvoye,
+        montantAttendu,
       });
     }
 
-    const produit = await Produits.findById(
-      precommande.produitId
-    ).session(session);
+    /* =====================================================
+       PRODUIT
+    ===================================================== */
+
+    const produit = await Produits.findById(precommande.produitId).session(
+      session,
+    );
 
     if (!produit) {
       await session.abortTransaction();
@@ -1011,14 +1030,21 @@ exports.confirmerSoldePrecommande = async (req, res) => {
       });
     }
 
+    /* =====================================================
+       PRODUIT DISPONIBLE
+    ===================================================== */
+
     if (!produit.disponible) {
       await session.abortTransaction();
 
       return res.status(400).json({
-        message:
-          "Le produit n'est pas encore disponible.",
+        message: "Le produit n'est pas encore disponible.",
       });
     }
+
+    /* =====================================================
+       QUANTITÉ
+    ===================================================== */
 
     const quantite = Number(precommande.quantite);
 
@@ -1030,127 +1056,94 @@ exports.confirmerSoldePrecommande = async (req, res) => {
       });
     }
 
-    /*
-     * ==========================================
-     * VÉRIFICATION DU STOCK
-     * ==========================================
-     *
-     * Ton stockParVariation utilise :
-     *
-     * couleur -> taille -> quantité
-     */
+    /* =====================================================
+       GESTION DU STOCK
+    ===================================================== */
 
-    const couleur = (precommande.couleur || "")
+    const couleur = String(precommande.couleur || "")
       .trim()
       .toLowerCase();
 
-    const taille = (precommande.taille || "")
+    const taille = String(precommande.taille || "")
       .trim()
       .toLowerCase();
 
     const hasVariations =
       produit.stockParVariation &&
+      typeof produit.stockParVariation.get === "function" &&
       produit.stockParVariation.size > 0;
 
     if (hasVariations) {
+      /* =========================================
+         STOCK PAR VARIATION
+      ========================================= */
+
       if (!couleur || !taille) {
         await session.abortTransaction();
 
         return res.status(400).json({
-          message:
-            "La variation du produit est incomplète.",
+          message: "La variation du produit est incomplète.",
         });
       }
 
-      const colorMap =
-        produit.stockParVariation.get(couleur);
+      const colorMap = produit.stockParVariation.get(couleur);
 
       if (!colorMap) {
         await session.abortTransaction();
 
         return res.status(400).json({
-          message:
-            "Cette couleur n'existe plus.",
+          message: "Cette couleur n'existe plus.",
         });
       }
 
-      const stockVariation =
-        Number(colorMap.get(taille) || 0);
+      const stockVariation = Number(colorMap.get(taille) || 0);
 
       if (stockVariation < quantite) {
         await session.abortTransaction();
 
         return res.status(400).json({
-          message:
-            "Le stock disponible est insuffisant pour cette variation.",
+          message: "Le stock disponible est insuffisant pour cette variation.",
           stockDisponible: stockVariation,
           quantiteDemandee: quantite,
+          couleur,
+          taille,
         });
       }
 
-      colorMap.set(
-        taille,
-        stockVariation - quantite
-      );
+      /* =========================================
+         DIMINUTION VARIATION
+      ========================================= */
 
-      produit.stockParVariation.set(
-        couleur,
-        colorMap
-      );
+      colorMap.set(taille, stockVariation - quantite);
 
-      produit.markModified(
-        "stockParVariation"
-      );
+      produit.stockParVariation.set(couleur, colorMap);
+
+      produit.markModified("stockParVariation");
     } else {
-      const stockGlobal = Number(
-        produit.stock || 0
-      );
+      /* =========================================
+         STOCK GLOBAL
+      ========================================= */
+
+      const stockGlobal = Number(produit.stock || 0);
 
       if (stockGlobal < quantite) {
         await session.abortTransaction();
 
         return res.status(400).json({
-          message:
-            "Le stock disponible est insuffisant.",
+          message: "Le stock disponible est insuffisant.",
           stockDisponible: stockGlobal,
           quantiteDemandee: quantite,
         });
       }
+
+      produit.stock = stockGlobal - quantite;
     }
 
-    /*
-     * ==========================================
-     * DIMINUTION DU STOCK GLOBAL
-     * ==========================================
-     */
+    /* =====================================================
+       CLIENT
+    ===================================================== */
 
-    const stockGlobalActuel = Number(
-      produit.stock || 0
-    );
-
-    if (stockGlobalActuel < quantite) {
-      await session.abortTransaction();
-
-      return res.status(400).json({
-        message:
-          "Le stock global est insuffisant.",
-      });
-    }
-
-    produit.stock =
-      stockGlobalActuel - quantite;
-
-    await produit.save({ session });
-
-    /*
-     * ==========================================
-     * RÉCUPÉRATION DU CLIENT
-     * ==========================================
-     */
-
-    const user = await User.findById(
-      precommande.clientId
-    ).session(session);
+    const user = await User.findById(precommande.clientId).session(session);
 
     if (!user) {
       await session.abortTransaction();
@@ -1160,49 +1153,51 @@ exports.confirmerSoldePrecommande = async (req, res) => {
       });
     }
 
-    /*
-     * ==========================================
-     * CRÉATION DE LA COMMANDE DÉFINITIVE
-     * ==========================================
-     */
+    /* =====================================================
+       CRÉATION COMMANDE
+    ===================================================== */
+
+    const paiementDepot = precommande.paiements.find((p) => p.type === "DEPOT");
 
     const commande = new Commandeapi({
       client: {
         userId: precommande.clientId,
+
         prenom: user.prenom || "",
         nom: user.nom || "",
         username: user.username || "",
         email: user.email || "",
-        numero:
-          user.telephone ||
-          user.numero ||
-          0,
+
+        numero: user.telephone || user.numero || 0,
       },
 
       panier: [
         {
           produitId: produit._id,
+
           nom: precommande.modele.title,
+
           prix: precommande.modele.prix,
+
           image: precommande.modele.image || "",
+
           quantite: precommande.quantite,
+
           couleur: precommande.couleur || "",
+
           taille: precommande.taille || "",
         },
       ],
 
-      totalProduits:
-        precommande.montantTotal,
+      totalProduits: precommande.montantTotal,
 
       fraisLivraison: 0,
 
-      total:
-        precommande.montantTotal,
+      total: precommande.montantTotal,
 
       modePaiement: "full",
 
-      servicePaiement:
-        paiementSolde.service,
+      servicePaiement: paiementSolde.service,
 
       isPaid: true,
 
@@ -1210,24 +1205,18 @@ exports.confirmerSoldePrecommande = async (req, res) => {
 
       statusCommande: "PAID",
 
-      username:
-        user.username || "Client",
+      username: user.username || "Client",
 
-      numero:
-        user.telephone ||
-        user.numero ||
-        0,
+      numero: user.telephone || user.numero || 0,
 
-      /*
-       * La commande définitive est entièrement payée.
-       * Le détail dépôt + solde reste dans la précommande.
-       */
       paiements: [
         {
           step: 1,
-          amountExpected:
-            precommande.montantTotal,
+
+          amountExpected: precommande.montantTotal,
+
           status: "PAID",
+
           validatedAt: new Date(),
         },
       ],
@@ -1235,77 +1224,69 @@ exports.confirmerSoldePrecommande = async (req, res) => {
       paiementsRecus: [
         {
           step: 1,
-          service:
-            precommande.paiements.find(
-              (p) => p.type === "DEPOT"
-            )?.service || paiementSolde.service,
 
-          numeroClient:
-            precommande.paiements.find(
-              (p) => p.type === "DEPOT"
-            )?.numeroClient || "",
+          service: paiementDepot?.service || paiementSolde.service,
 
-          reference:
-            precommande.paiements.find(
-              (p) => p.type === "DEPOT"
-            )?.reference || "",
+          numeroClient: paiementDepot?.numeroClient || "",
 
-          montantEnvoye:
-            precommande.montantDepot,
+          reference: paiementDepot?.reference || "",
+
+          montantEnvoye: precommande.montantDepot,
 
           status: "CONFIRMED",
 
-          submittedAt:
-            precommande.paiements.find(
-              (p) => p.type === "DEPOT"
-            )?.submittedAt || new Date(),
+          submittedAt: paiementDepot?.submittedAt || new Date(),
 
-          confirmedAt:
-            precommande.paiements.find(
-              (p) => p.type === "DEPOT"
-            )?.confirmedAt || new Date(),
+          confirmedAt: paiementDepot?.confirmedAt || new Date(),
         },
 
         {
           step: 2,
-          service:
-            paiementSolde.service,
 
-          numeroClient:
-            paiementSolde.numeroClient,
+          service: paiementSolde.service,
 
-          reference:
-            paiementSolde.reference,
+          numeroClient: paiementSolde.numeroClient,
 
-          montantEnvoye:
-            paiementSolde.montantEnvoye,
+          reference: paiementSolde.reference,
+
+          montantEnvoye: paiementSolde.montantEnvoye,
 
           status: "CONFIRMED",
 
-          submittedAt:
-            paiementSolde.submittedAt,
+          submittedAt: paiementSolde.submittedAt,
 
           confirmedAt: new Date(),
         },
       ],
     });
 
-    await commande.save({ session });
+    /* =====================================================
+       SAUVEGARDE PRODUIT
+    ===================================================== */
 
-    /*
-     * ==========================================
-     * CONFIRMATION DU PAIEMENT SOLDE
-     * ==========================================
-     */
+    await produit.save({
+      session,
+    });
+
+    /* =====================================================
+       SAUVEGARDE COMMANDE
+    ===================================================== */
+
+    await commande.save({
+      session,
+    });
+
+    /* =====================================================
+       CONFIRMATION SOLDE
+    ===================================================== */
 
     paiementSolde.status = "CONFIRMED";
+
     paiementSolde.confirmedAt = new Date();
 
-    /*
-     * ==========================================
-     * FINALISATION DE LA PRÉCOMMANDE
-     * ==========================================
-     */
+    /* =====================================================
+       FINALISATION PRÉCOMMANDE
+    ===================================================== */
 
     precommande.statut = "FINALIZED";
 
@@ -1319,26 +1300,36 @@ exports.confirmerSoldePrecommande = async (req, res) => {
       precommande.verifiePar = req.auth.userId;
     }
 
-    await precommande.save({ session });
+    await precommande.save({
+      session,
+    });
+
+    /* =====================================================
+       COMMIT
+    ===================================================== */
 
     await session.commitTransaction();
 
     return res.status(200).json({
       message:
         "Solde confirmé. La commande définitive a été créée et le stock a été mis à jour.",
+
       precommande,
+
       commande,
     });
   } catch (error) {
-    await session.abortTransaction();
+    try {
+      await session.abortTransaction();
+    } catch (abortError) {
+      console.error("Erreur abort transaction:", abortError);
+    }
 
-    console.error(
-      "Erreur confirmerSoldePrecommande:",
-      error
-    );
+    console.error("Erreur confirmerSoldePrecommande:", error);
 
     return res.status(500).json({
-      message: "Erreur serveur.",
+      message: "Erreur lors de la confirmation du solde.",
+
       error: error.message,
     });
   } finally {
@@ -1375,26 +1366,22 @@ exports.rejeterSoldePrecommande = async (req, res) => {
       .reverse()
       .find(
         (paiement) =>
-          paiement.type === "SOLDE" &&
-          paiement.status === "PENDING"
+          paiement.type === "SOLDE" && paiement.status === "PENDING",
       );
 
     if (!paiementSolde) {
       return res.status(400).json({
-        message:
-          "Aucun paiement du solde en attente.",
+        message: "Aucun paiement du solde en attente.",
       });
     }
 
     paiementSolde.status = "REJECTED";
-    paiementSolde.adminComment =
-      String(adminComment).trim();
+    paiementSolde.adminComment = String(adminComment).trim();
 
     precommande.statut = "READY_TO_FINALIZE";
     precommande.disponiblePourFinalisation = true;
 
-    precommande.adminComment =
-      String(adminComment).trim();
+    precommande.adminComment = String(adminComment).trim();
 
     precommande.verifieAt = new Date();
 
@@ -1410,10 +1397,7 @@ exports.rejeterSoldePrecommande = async (req, res) => {
       precommande,
     });
   } catch (error) {
-    console.error(
-      "Erreur rejeterSoldePrecommande:",
-      error
-    );
+    console.error("Erreur rejeterSoldePrecommande:", error);
 
     return res.status(500).json({
       message: "Erreur serveur.",

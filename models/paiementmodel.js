@@ -124,7 +124,11 @@ const CommandeSchema = new mongoose.Schema(
       ville: { type: String, required: true },
       codePostal: { type: String, required: true },
       pays: { type: String, required: true },
-      numero: { type: Number, required: true },
+      numero: {
+        type: String,
+        required: true,
+        trim: true,
+      },
       // ==============================
       // POSITION GPS CLIENT
       // ==============================

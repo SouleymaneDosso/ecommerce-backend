@@ -258,6 +258,43 @@ const precommandeSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    client: {
+  nom: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  prenom: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  adresse: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  ville: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  codePostal: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  pays: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  numero: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+},
   },
   {
     timestamps: true,

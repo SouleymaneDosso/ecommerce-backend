@@ -531,14 +531,14 @@ exports.rechercherLivreur = async (req, res) => {
     // ADMIN DOIT AVOIR CONFIRMÉ
     // =================================================
 
-   if (!["CONFIRMED", "PAID"].includes(commande.statusCommande)) {
-  return res.status(403).json({
-    message:
-      "La livraison ne peut pas être demandée avant la confirmation ou le paiement complet de la commande.",
+    if (commande.statusCommande !== "CONFIRMED") {
+      return res.status(403).json({
+        message:
+          "La livraison ne peut pas être demandée avant la confirmation de la commande par l'administrateur. Veuillez patienter. Vous pouvez voir votre commande dans votre espace compte. Pour choisir un livreur, cliquez sur la commande dans votre compte client.",
 
-    statusCommande: commande.statusCommande,
-  });
-}
+        statusCommande: commande.statusCommande,
+      });
+    }
 
     // =================================================
     // RECHERCHE UNE SEULE FOIS

@@ -20,12 +20,7 @@ const generateReference = (commandeId, step) => {
    ========================= */
 const creerCommande = async (req, res) => {
   try {
-    const {
-      client,
-      panier,
-      modePaiement,
-      servicePaiement,
-    } = req.body;
+    const { client, panier, modePaiement, servicePaiement } = req.body;
 
     if (!client || !panier || !Array.isArray(panier) || panier.length === 0) {
       return res.status(400).json({
@@ -42,25 +37,20 @@ const creerCommande = async (req, res) => {
         const product = await Product.findById(item.produitId);
 
         if (!product) {
-          throw new Error(
-            `Produit introuvable: ${item.produitId}`,
-          );
+          throw new Error(`Produit introuvable: ${item.produitId}`);
         }
 
         const quantite = Number(item.quantite);
 
         if (!quantite || quantite <= 0) {
-          throw new Error(
-            `Quantité invalide pour le produit ${product.title}`,
-          );
+          throw new Error(`Quantité invalide pour le produit ${product.title}`);
         }
 
         return {
           produitId: product._id,
           nom: product.title,
           prix: Number(product.price),
-          image:
-            product.images?.find((img) => img.isMain)?.url || "",
+          image: product.images?.find((img) => img.isMain)?.url || "",
           quantite,
           couleur: item.couleur,
           taille: item.taille,
@@ -73,8 +63,7 @@ const creerCommande = async (req, res) => {
     // ==========================================
 
     const totalProduits = panierSnapshot.reduce(
-      (acc, item) =>
-        acc + Number(item.prix) * Number(item.quantite),
+      (acc, item) => acc + Number(item.prix) * Number(item.quantite),
       0,
     );
 
@@ -105,10 +94,7 @@ const creerCommande = async (req, res) => {
 
       modePaiement,
 
-      servicePaiement:
-        modePaiement === "cod"
-          ? "livraison"
-          : servicePaiement,
+      servicePaiement: modePaiement === "cod" ? "livraison" : servicePaiement,
 
       paiements: [],
       paiementsRecus: [],
@@ -127,9 +113,7 @@ const creerCommande = async (req, res) => {
       nouvelleCommande.paiements = [];
 
       nouvelleCommande.statusCommande = "PENDING";
-    }
-
-    else if (modePaiement === "installments") {
+    } else if (modePaiement === "installments") {
       const montantParEtape = Math.ceil(total / 3);
 
       for (let i = 1; i <= 3; i++) {
@@ -143,23 +127,15 @@ const creerCommande = async (req, res) => {
           step: i,
           amountExpected: montant,
           status: "UNPAID",
-          reference: generateReference(
-            nouvelleCommande._id,
-            i,
-          ),
+          reference: generateReference(nouvelleCommande._id, i),
         });
       }
-    }
-
-    else {
+    } else {
       nouvelleCommande.paiements.push({
         step: 1,
         amountExpected: total,
         status: "UNPAID",
-        reference: generateReference(
-          nouvelleCommande._id,
-          1,
-        ),
+        reference: generateReference(nouvelleCommande._id, 1),
       });
     }
 
@@ -177,19 +153,11 @@ const creerCommande = async (req, res) => {
 
     if (user?.email) {
       try {
-        await sendNewOrderEmail(
-          user.email,
-          nouvelleCommande,
-        );
+        await sendNewOrderEmail(user.email, nouvelleCommande);
 
-        console.log(
-          "✅ Email nouvelle commande envoyé",
-        );
+        console.log("✅ Email nouvelle commande envoyé");
       } catch (err) {
-        console.error(
-          "❌ Erreur envoi email nouvelle commande:",
-          err,
-        );
+        console.error("❌ Erreur envoi email nouvelle commande:", err);
       }
     }
 
@@ -202,12 +170,8 @@ const creerCommande = async (req, res) => {
 
       commande: nouvelleCommande,
     });
-
   } catch (err) {
-    console.error(
-      "CREATION COMMANDE ERROR:",
-      err,
-    );
+    console.error("CREATION COMMANDE ERROR:", err);
 
     return res.status(500).json({
       message: "Erreur lors de la création de la commande",
@@ -215,8 +179,6 @@ const creerCommande = async (req, res) => {
     });
   }
 };
-
-
 
 /* =========================
    GET COMMANDE PAR ID
@@ -227,8 +189,7 @@ const getCommandeById = async (req, res) => {
 
     const commande = await Commandeapi.findById(id).populate({
       path: "livraison.livreurId",
-      select:
-        "username telephone statut localisation commandeActuelle",
+      select: "username telephone statut localisation commandeActuelle",
     });
 
     if (!commande) {
@@ -240,8 +201,7 @@ const getCommandeById = async (req, res) => {
     const commandeData = commande.toObject();
 
     if (commandeData.livraison) {
-      commandeData.livraison.livreur =
-        commandeData.livraison.livreurId || null;
+      commandeData.livraison.livreur = commandeData.livraison.livreurId || null;
     }
 
     return res.status(200).json({
@@ -313,11 +273,43 @@ const paiementSemi = async (req, res) => {
       });
     }
 
-    const paiementStep = commande.paiements.find(
-      (p) => p.step === Number(step),
+    const prochainPaiement = commande.paiements.find(
+      (p) => p.status !== "PAID",
     );
-    if (!paiementStep)
-      return res.status(404).json({ message: "Étape invalide" });
+
+    if (!prochainPaiement) {
+      return res.status(400).json({
+        message: "Tous les paiements de cette commande sont déjà réglés.",
+      });
+    }
+
+    if (Number(step) !== prochainPaiement.step) {
+      return res.status(400).json({
+        message: `Vous devez payer la tranche ${prochainPaiement.step}.`,
+      });
+    }
+
+    if (prochainPaiement.status === "PENDING") {
+      return res.status(400).json({
+        message: "Cette tranche est déjà en attente de validation.",
+      });
+    }
+
+    const montant = Number(montantEnvoye);
+
+    if (!Number.isFinite(montant) || montant <= 0) {
+      return res.status(400).json({
+        message: "Montant invalide.",
+      });
+    }
+
+    if (montant < prochainPaiement.amountExpected) {
+      return res.status(400).json({
+        message: `Le montant attendu est de ${prochainPaiement.amountExpected} FCFA.`,
+      });
+    }
+
+    const paiementStep = prochainPaiement;
 
     // Ajouter paiement reçu en PENDING
     commande.paiementsRecus.push({
@@ -832,12 +824,7 @@ const mettreAJourLocalisationClient = async (req, res) => {
       });
     }
 
-    if (
-      lat < -90 ||
-      lat > 90 ||
-      lng < -180 ||
-      lng > 180
-    ) {
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
       return res.status(400).json({
         message: "Coordonnées GPS invalides",
       });
@@ -859,10 +846,7 @@ const mettreAJourLocalisationClient = async (req, res) => {
     // Le client ne peut modifier que
     // sa propre commande
     // ==============================
-    if (
-      commande.client.userId.toString() !==
-      req.auth.userId.toString()
-    ) {
+    if (commande.client.userId.toString() !== req.auth.userId.toString()) {
       return res.status(403).json({
         message: "Cette commande ne vous appartient pas",
       });
@@ -887,21 +871,17 @@ const mettreAJourLocalisationClient = async (req, res) => {
     const io = req.app.get("io");
 
     if (io) {
-      io.to(`commande:${commande._id}`).emit(
-        "client_position",
-        {
-          commandeId: commande._id.toString(),
+      io.to(`commande:${commande._id}`).emit("client_position", {
+        commandeId: commande._id.toString(),
 
-          clientId:
-            commande.client.userId.toString(),
+        clientId: commande.client.userId.toString(),
 
-          latitude: lat,
+        latitude: lat,
 
-          longitude: lng,
+        longitude: lng,
 
-          derniereMiseAJour: maintenant,
-        },
-      );
+        derniereMiseAJour: maintenant,
+      });
     }
 
     return res.status(200).json({
@@ -910,17 +890,13 @@ const mettreAJourLocalisationClient = async (req, res) => {
       localisation: commande.client.localisation,
     });
   } catch (error) {
-    console.error(
-      "GPS CLIENT ERROR:",
-      error,
-    );
+    console.error("GPS CLIENT ERROR:", error);
 
     return res.status(500).json({
       message: "Erreur serveur",
     });
   }
 };
-
 
 module.exports = {
   creerCommande,
@@ -932,5 +908,5 @@ module.exports = {
   rejeterPaiementAdmin,
   confirmerCommandeCOD,
   marquerCommeLivre,
-  mettreAJourLocalisationClient
+  mettreAJourLocalisationClient,
 };

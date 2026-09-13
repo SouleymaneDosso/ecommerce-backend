@@ -381,47 +381,59 @@ const confirmerPaiementAdmin = async (req, res) => {
     );
     const produitsMap = {};
     produits.forEach((p) => (produitsMap[p._id.toString()] = p));
+    // ---------- CONFIRMER LE PAIEMENT ----------
+
+    paiementRecu.status = "CONFIRMED";
+    paiementRecu.confirmedAt = new Date();
+    paiementRecu.adminComment = adminComment || "";
+
+    const paiementStep = commande.paiements.find(
+      (p) => p.step === paiementRecu.step,
+    );
+
+    if (paiementStep) {
+      paiementStep.status = "PAID";
+      paiementStep.validatedAt = new Date();
+    }
 
     // ---------- Décrémenter le stock UNE SEULE FOIS ----------
-// Le stock est réservé lors de la confirmation de la première tranche.
-// Les tranches 2 et 3 ne doivent jamais décrémenter à nouveau le stock.
+    // Le stock est réservé lors de la confirmation de la première tranche.
+    // Les tranches 2 et 3 ne doivent jamais décrémenter à nouveau le stock.
 
-if (paiementRecu.step === 1) {
-  for (const item of commande.panier) {
-    const produit = produitsMap[item.produitId.toString()];
-    if (!produit) continue;
+    if (paiementRecu.step === 1) {
+      for (const item of commande.panier) {
+        const produit = produitsMap[item.produitId.toString()];
+        if (!produit) continue;
 
-    const couleur = item.couleur.toLowerCase();
-    const taille = item.taille.toLowerCase();
+        const couleur = item.couleur.toLowerCase();
+        const taille = item.taille.toLowerCase();
 
-    let colorMap =
-      produit.stockParVariation.get(couleur) || new Map();
+        let colorMap = produit.stockParVariation.get(couleur) || new Map();
 
-    let currentStock = colorMap.get(taille) || 0;
+        let currentStock = colorMap.get(taille) || 0;
 
-    currentStock -= item.quantite;
+        currentStock -= item.quantite;
 
-    if (currentStock < 0) {
-      currentStock = 0;
+        if (currentStock < 0) {
+          currentStock = 0;
+        }
+
+        colorMap.set(taille, currentStock);
+
+        produit.stockParVariation.set(couleur, colorMap);
+
+        produit.markModified("stockParVariation");
+
+        // Stock global
+        produit.stock -= item.quantite;
+
+        if (produit.stock < 0) {
+          produit.stock = 0;
+        }
+
+        await produit.save({ session });
+      }
     }
-
-    colorMap.set(taille, currentStock);
-
-    produit.stockParVariation.set(couleur, colorMap);
-
-    produit.markModified("stockParVariation");
-
-    // Stock global
-    produit.stock -= item.quantite;
-
-    if (produit.stock < 0) {
-      produit.stock = 0;
-    }
-
-    await produit.save({ session });
-  }
-}
-   
 
     // ---------- Mettre à jour le statut global ----------
     if (commande.modePaiement !== "cod") {

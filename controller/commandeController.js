@@ -382,69 +382,46 @@ const confirmerPaiementAdmin = async (req, res) => {
     const produitsMap = {};
     produits.forEach((p) => (produitsMap[p._id.toString()] = p));
 
-    // ---------- Vérification du stock ----------
-    for (const item of commande.panier) {
-      const produit = produitsMap[item.produitId.toString()];
-      if (!produit) continue;
+    // ---------- Décrémenter le stock UNE SEULE FOIS ----------
+// Le stock est réservé lors de la confirmation de la première tranche.
+// Les tranches 2 et 3 ne doivent jamais décrémenter à nouveau le stock.
 
-      const couleur = item.couleur.toLowerCase();
-      const taille = item.taille.toLowerCase();
+if (paiementRecu.step === 1) {
+  for (const item of commande.panier) {
+    const produit = produitsMap[item.produitId.toString()];
+    if (!produit) continue;
 
-      // Récupérer ou créer la Map pour la couleur
-      let colorMap = produit.stockParVariation.get(couleur) || new Map();
+    const couleur = item.couleur.toLowerCase();
+    const taille = item.taille.toLowerCase();
 
-      // Stock actuel de la taille
-      let stockVariation = colorMap.get(taille) || 0;
+    let colorMap =
+      produit.stockParVariation.get(couleur) || new Map();
 
-      if (stockVariation < item.quantite) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(400).json({
-          message: `Stock insuffisant pour ${item.nom} (${item.couleur}/${item.taille})`,
-        });
-      }
+    let currentStock = colorMap.get(taille) || 0;
+
+    currentStock -= item.quantite;
+
+    if (currentStock < 0) {
+      currentStock = 0;
     }
 
-    // ---------- Confirmer le paiement ----------
-    paiementRecu.status = "CONFIRMED";
-    paiementRecu.confirmedAt = new Date();
-    paiementRecu.adminComment = adminComment || "";
+    colorMap.set(taille, currentStock);
 
-    const paiementStep = commande.paiements.find(
-      (p) => p.step === paiementRecu.step,
-    );
-    if (paiementStep) {
-      paiementStep.status = "PAID";
-      paiementStep.validatedAt = new Date();
+    produit.stockParVariation.set(couleur, colorMap);
+
+    produit.markModified("stockParVariation");
+
+    // Stock global
+    produit.stock -= item.quantite;
+
+    if (produit.stock < 0) {
+      produit.stock = 0;
     }
 
-    // ---------- Décrémenter le stock ----------
-    for (const item of commande.panier) {
-      const produit = produitsMap[item.produitId.toString()];
-      if (!produit) continue;
-
-      const couleur = item.couleur.toLowerCase();
-      const taille = item.taille.toLowerCase();
-
-      // Récupérer ou créer la Map pour la couleur
-      let colorMap = produit.stockParVariation.get(couleur) || new Map();
-
-      // Décrémenter le stock
-      let currentStock = colorMap.get(taille) || 0;
-      currentStock -= item.quantite;
-      if (currentStock < 0) currentStock = 0;
-
-      colorMap.set(taille, currentStock); // Mettre à jour la taille
-      produit.stockParVariation.set(couleur, colorMap); // Mettre à jour la couleur entière
-
-      produit.markModified("stockParVariation"); // 🔑 Indique à Mongoose que la Map a changé
-
-      // Décrémenter le stock global
-      produit.stock -= item.quantite;
-      if (produit.stock < 0) produit.stock = 0;
-
-      await produit.save({ session });
-    }
+    await produit.save({ session });
+  }
+}
+   
 
     // ---------- Mettre à jour le statut global ----------
     if (commande.modePaiement !== "cod") {

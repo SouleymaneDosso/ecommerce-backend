@@ -21,7 +21,6 @@ const generateReference = (commandeId, step) => {
 const creerCommande = async (req, res) => {
   try {
     const { client, panier, modePaiement, servicePaiement } = req.body;
-    console.log("💰 MODE PAIEMENT REÇU PAR LE BACKEND :", modePaiement);
 
     if (!client || !panier || !Array.isArray(panier) || panier.length === 0) {
       return res.status(400).json({

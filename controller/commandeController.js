@@ -448,7 +448,7 @@ const confirmerPaiementAdmin = async (req, res) => {
     const clientUser = await User.findById(commande.client.userId);
     const clientEmail = clientUser?.email;
 
-    if (clientEmail) {
+    if (clientEmail) { 
       await sendPaymentConfirmedEmail(
         clientEmail,
         paiementRecu.step,

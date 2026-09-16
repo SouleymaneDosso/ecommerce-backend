@@ -553,7 +553,7 @@ const rejeterPaiementAdmin = async (req, res) => {
     // ---------- Mettre à jour le statut global ----------
     if (commande.modePaiement !== "cod") {
       if (commande.paiements.every((p) => p.status === "PAID")) {
-        commande.statusCommande = "PAID";
+        commande.statusCommande = "CONFIRMED";
       } else if (commande.paiements.some((p) => p.status === "PENDING")) {
         commande.statusCommande = "PARTIALLY_PAID";
       } else {
@@ -562,6 +562,12 @@ const rejeterPaiementAdmin = async (req, res) => {
     }
 
     await commande.save({ session });
+    const io = req.app.get("io");
+
+    io.to(`user:${commande.client.userId}`).emit("commande_update", {
+      id: commande._id.toString(),
+      statusCommande: commande.statusCommande,
+    });
     const clientUser = await User.findById(commande.client.userId);
     const clientEmail = clientUser?.email;
 
@@ -733,7 +739,7 @@ const marquerCommeLivre = async (req, res) => {
 
     io.to(`user:${commande.client.userId}`).emit("commande_update", {
       id: commande._id,
-      status: "DELIVERED",
+      statusCommande: commande.statusCommande,
     });
 
     // =======================
@@ -787,7 +793,7 @@ const marquerCommeExpedie = async (req, res) => {
 
     io.to(`user:${commande.client.userId}`).emit("commande_update", {
       id: commande._id,
-      status: "SHIPPED",
+      statusCommande: commande.statusCommande,
     });
 
     res.json({ message: "Commande en cours de livraison", commande });

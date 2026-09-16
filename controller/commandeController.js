@@ -450,6 +450,7 @@ const confirmerPaiementAdmin = async (req, res) => {
     io.to(`user:${commande.client.userId}`).emit("commande_update", {
       id: commande._id.toString(),
       statusCommande: commande.statusCommande,
+      paiements: commande.paiements,
     });
     const clientUser = await User.findById(commande.client.userId);
     const clientEmail = clientUser?.email;
@@ -563,11 +564,6 @@ const rejeterPaiementAdmin = async (req, res) => {
 
     await commande.save({ session });
     const io = req.app.get("io");
-    console.log(
-      "📡 Envoi socket rejet paiement vers :",
-      `user:${commande.client.userId}`,
-    );
-
     io.to(`user:${commande.client.userId}`).emit("commande_update", {
       id: commande._id.toString(),
       statusCommande: commande.statusCommande,

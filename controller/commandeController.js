@@ -617,7 +617,7 @@ const confirmerCommandeCOD = async (req, res) => {
 
     io.to(`user:${commande.client.userId}`).emit("commande_update", {
       id: commande._id,
-      status: "CONFIRMED",
+      statusCommande: commande.statusCommande,
     });
 
     // ✅ récupérer le user correctement

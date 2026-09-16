@@ -563,6 +563,10 @@ const rejeterPaiementAdmin = async (req, res) => {
 
     await commande.save({ session });
     const io = req.app.get("io");
+    console.log(
+      "📡 Envoi socket rejet paiement vers :",
+      `user:${commande.client.userId}`,
+    );
 
     io.to(`user:${commande.client.userId}`).emit("commande_update", {
       id: commande._id.toString(),

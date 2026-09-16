@@ -4,8 +4,12 @@ const router = express.Router();
 
 const authAdmin = require("../authentification/authAdmin");
 const authOptional = require("../authentification/authOptional");
+
 const {
   enregistrerVisite,
+  obtenirResumeStatistiques,
+  obtenirStatistiquesClients,
+  obtenirStatistiquesPages,
 } = require("../controller/statistiquesController");
 // =====================================================
 // STATISTIQUES ADMIN
@@ -18,5 +22,8 @@ router.get("/test", authAdmin, (req, res) => {
   });
 });
 router.post("/visite", authOptional, enregistrerVisite);
+router.get("/resume", authAdmin, obtenirResumeStatistiques);
+router.get("/clients", authAdmin, obtenirStatistiquesClients);
+router.get("/pages", authAdmin, obtenirStatistiquesPages);
 
 module.exports = router;

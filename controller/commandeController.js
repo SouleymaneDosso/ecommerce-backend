@@ -445,10 +445,16 @@ const confirmerPaiementAdmin = async (req, res) => {
     }
 
     await commande.save({ session });
+    const io = req.app.get("io");
+
+    io.to(`user:${commande.client.userId}`).emit("commande_update", {
+      id: commande._id.toString(),
+      statusCommande: commande.statusCommande,
+    });
     const clientUser = await User.findById(commande.client.userId);
     const clientEmail = clientUser?.email;
 
-    if (clientEmail) { 
+    if (clientEmail) {
       await sendPaymentConfirmedEmail(
         clientEmail,
         paiementRecu.step,

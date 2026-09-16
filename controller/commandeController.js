@@ -567,6 +567,14 @@ const rejeterPaiementAdmin = async (req, res) => {
     io.to(`user:${commande.client.userId}`).emit("commande_update", {
       id: commande._id.toString(),
       statusCommande: commande.statusCommande,
+      paiementRejete: {
+        _id: paiementRecu._id.toString(),
+        step: paiementRecu.step,
+        status: paiementRecu.status,
+        adminComment: paiementRecu.adminComment,
+        montantEnvoye: paiementRecu.montantEnvoye,
+        submittedAt: paiementRecu.submittedAt,
+      },
     });
     const clientUser = await User.findById(commande.client.userId);
     const clientEmail = clientUser?.email;

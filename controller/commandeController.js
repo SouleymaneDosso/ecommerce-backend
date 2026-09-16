@@ -438,7 +438,7 @@ const confirmerPaiementAdmin = async (req, res) => {
     // ---------- Mettre à jour le statut global ----------
     if (commande.modePaiement !== "cod") {
       if (commande.paiements.every((p) => p.status === "PAID")) {
-        commande.statusCommande = "PAID";
+        commande.statusCommande = "CONFIRMED";
       } else {
         commande.statusCommande = "PARTIALLY_PAID";
       }

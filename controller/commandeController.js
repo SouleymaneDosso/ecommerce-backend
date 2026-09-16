@@ -668,16 +668,16 @@ const marquerCommeLivre = async (req, res) => {
     const { id } = req.params;
 
     const commande = await Commandeapi.findById(id).session(session);
-    console.log("🔎 MODE PAIEMENT COMMANDE :", commande?.modePaiement);
+
     if (!commande)
       return res.status(404).json({ message: "Commande introuvable" });
 
     // 🔒 Sécurité
-    if (commande.modePaiement !== "cod") {
-      return res.status(400).json({ message: "Réservé aux commandes COD" });
+    if (commande.modePaiement !== "full") {
+      return res.status(400).json({ message: "Réservé aux commandes full" });
     }
 
-    // =======================
+    // ======================
     // 1. GESTION DU STOCK
     // =======================
     const produitIds = commande.panier.map((item) => item.produitId);

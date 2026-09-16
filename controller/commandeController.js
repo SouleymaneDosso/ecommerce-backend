@@ -673,11 +673,11 @@ const marquerCommeLivre = async (req, res) => {
       return res.status(404).json({ message: "Commande introuvable" });
 
     // 🔒 Sécurité
-    if (commande.modePaiement !== "full") {
-      return res.status(400).json({ message: "Réservé aux commandes full" });
+    if (commande.modePaiement !== "cod") {
+      return res.status(400).json({ message: "Réservé aux commandes COD" });
     }
 
-    // ======================
+    // =======================
     // 1. GESTION DU STOCK
     // =======================
     const produitIds = commande.panier.map((item) => item.produitId);

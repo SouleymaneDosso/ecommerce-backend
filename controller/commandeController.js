@@ -436,26 +436,11 @@ const confirmerPaiementAdmin = async (req, res) => {
     }
 
     // ---------- Mettre à jour le statut global ----------
-
     if (commande.modePaiement !== "cod") {
-      const tousLesPaiementsPayes = commande.paiements.every(
-        (p) => p.status === "PAID",
-      );
-
-      const paiementEnAttente = commande.paiements.some(
-        (p) => p.status === "PENDING",
-      );
-
-      if (tousLesPaiementsPayes) {
-        // Tous les paiements sont validés
-        // => la commande est confirmée
-        commande.statusCommande = "CONFIRMED";
-      } else if (paiementEnAttente) {
-        // Au moins une tranche est encore en attente
-        commande.statusCommande = "PARTIALLY_PAID";
+      if (commande.paiements.every((p) => p.status === "PAID")) {
+        commande.statusCommande = "PAID";
       } else {
-        // Paiement(s) restant(s) à effectuer
-        commande.statusCommande = "PENDING";
+        commande.statusCommande = "PARTIALLY_PAID";
       }
     }
 
@@ -560,26 +545,15 @@ const rejeterPaiementAdmin = async (req, res) => {
     }
 
     // ---------- Mettre à jour le statut global ----------
-
-if (commande.modePaiement !== "cod") {
-  const tousLesPaiementsPayes = commande.paiements.every(
-    (p) => p.status === "PAID"
-  );
-
-  const paiementEnAttente = commande.paiements.some(
-    (p) => p.status === "PENDING"
-  );
-
-  if (tousLesPaiementsPayes) {
-    commande.statusCommande = "CONFIRMED";
-  } else if (paiementEnAttente) {
-    commande.statusCommande = "PARTIALLY_PAID";
-  } else {
-    commande.statusCommande = "PENDING";
-  }
-}
-
-
+    if (commande.modePaiement !== "cod") {
+      if (commande.paiements.every((p) => p.status === "PAID")) {
+        commande.statusCommande = "PAID";
+      } else if (commande.paiements.some((p) => p.status === "PENDING")) {
+        commande.statusCommande = "PARTIALLY_PAID";
+      } else {
+        commande.statusCommande = "PENDING";
+      }
+    }
 
     await commande.save({ session });
     const clientUser = await User.findById(commande.client.userId);

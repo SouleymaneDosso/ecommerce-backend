@@ -253,9 +253,44 @@ const obtenirStatistiquesPages = async (req, res) => {
     });
   }
 };
+const obtenirFunnelStatistiques = async (req, res) => {
+  try {
+    const visiteursUniques = await Visite.distinct("visitorId");
+
+    const visiteursIdentifies = await Visite.distinct("visitorId", {
+      userId: { $ne: null },
+    });
+
+    const utilisateursInscrits = await User.countDocuments();
+
+    const clientsAvecCommande = await Commande.distinct("client.userId", {
+      "client.userId": { $ne: null },
+    });
+
+    res.json({
+      visiteursUniques: visiteursUniques.length,
+
+      visiteursIdentifies: visiteursIdentifies.length,
+
+      utilisateursInscrits,
+
+      clientsAvecCommande: clientsAvecCommande.length,
+    });
+  } catch (error) {
+    console.error(
+      "❌ Erreur statistiques funnel :",
+      error,
+    );
+
+    res.status(500).json({
+      message: "Erreur lors du calcul du funnel",
+    });
+  }
+};
 module.exports = {
   enregistrerVisite,
   obtenirResumeStatistiques,
   obtenirStatistiquesClients,
   obtenirStatistiquesPages,
+  obtenirFunnelStatistiques,
 };

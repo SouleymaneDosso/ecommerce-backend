@@ -10,6 +10,7 @@ const {
   obtenirResumeStatistiques,
   obtenirStatistiquesClients,
   obtenirStatistiquesPages,
+  obtenirFunnelStatistiques,
 } = require("../controller/statistiquesController");
 // =====================================================
 // STATISTIQUES ADMIN
@@ -25,5 +26,6 @@ router.post("/visite", authOptional, enregistrerVisite);
 router.get("/resume", authAdmin, obtenirResumeStatistiques);
 router.get("/clients", authAdmin, obtenirStatistiquesClients);
 router.get("/pages", authAdmin, obtenirStatistiquesPages);
+router.get("/funnel", authAdmin, obtenirFunnelStatistiques);
 
 module.exports = router;

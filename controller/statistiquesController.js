@@ -151,16 +151,11 @@ const obtenirStatistiquesClients = async (req, res) => {
     }).select("username email");
 
     const utilisateursMap = new Map(
-      utilisateurs.map((user) => [
-        user._id.toString(),
-        user,
-      ]),
+      utilisateurs.map((user) => [user._id.toString(), user]),
     );
 
     const resultats = clients.map((client) => {
-      const utilisateur = utilisateursMap.get(
-        client._id.toString(),
-      );
+      const utilisateur = utilisateursMap.get(client._id.toString());
 
       return {
         userId: client._id,
@@ -183,10 +178,7 @@ const obtenirStatistiquesClients = async (req, res) => {
       clients: resultats,
     });
   } catch (error) {
-    console.error(
-      "❌ Erreur statistiques clients :",
-      error,
-    );
+    console.error("❌ Erreur statistiques clients :", error);
 
     res.status(500).json({
       message: "Erreur lors du calcul des statistiques clients",
@@ -243,10 +235,7 @@ const obtenirStatistiquesPages = async (req, res) => {
       pages,
     });
   } catch (error) {
-    console.error(
-      "❌ Erreur statistiques pages :",
-      error,
-    );
+    console.error("❌ Erreur statistiques pages :", error);
 
     res.status(500).json({
       message: "Erreur lors du calcul des statistiques pages",
@@ -277,56 +266,13 @@ const obtenirFunnelStatistiques = async (req, res) => {
       clientsAvecCommande: clientsAvecCommande.length,
     });
   } catch (error) {
-    console.error(
-      "❌ Erreur statistiques funnel :",
-      error,
-    );
+    console.error("❌ Erreur statistiques funnel :", error);
 
     res.status(500).json({
       message: "Erreur lors du calcul du funnel",
     });
   }
 };
-
-// =====================================================
-// FUNNEL
-// =====================================================
-
-const obtenirFunnelStatistiques = async (req, res) => {
-  try {
-    const visiteursUniques = await Visite.distinct("visitorId");
-
-    const visiteursIdentifies = await Visite.distinct("visitorId", {
-      userId: { $ne: null },
-    });
-
-    const utilisateursInscrits = await User.countDocuments();
-
-    const clientsAvecCommande = await Commande.distinct(
-      "client.userId",
-      {
-        "client.userId": { $ne: null },
-      },
-    );
-
-    res.json({
-      visiteursUniques: visiteursUniques.length,
-      visiteursIdentifies: visiteursIdentifies.length,
-      utilisateursInscrits,
-      clientsAvecCommande: clientsAvecCommande.length,
-    });
-  } catch (error) {
-    console.error(
-      "❌ Erreur statistiques funnel :",
-      error,
-    );
-
-    res.status(500).json({
-      message: "Erreur lors du calcul du funnel",
-    });
-  }
-};
-
 
 // =====================================================
 // ÉVOLUTION DES VISITES - 30 DERNIERS JOURS
@@ -418,17 +364,13 @@ const obtenirEvolutionStatistiques = async (req, res) => {
       evolution,
     });
   } catch (error) {
-    console.error(
-      "❌ Erreur évolution statistiques :",
-      error,
-    );
+    console.error("❌ Erreur évolution statistiques :", error);
 
     res.status(500).json({
       message: "Erreur lors du calcul de l'évolution",
     });
   }
 };
-
 
 // =====================================================
 // VISITEURS
@@ -479,9 +421,7 @@ const obtenirStatistiquesVisiteurs = async (req, res) => {
     ]);
 
     const resultats = visiteurs.map((visiteur) => {
-      const utilisateur = visiteur.userIds.find(
-        (id) => id !== null,
-      );
+      const utilisateur = visiteur.userIds.find((id) => id !== null);
 
       return {
         visitorId: visiteur._id,
@@ -506,17 +446,13 @@ const obtenirStatistiquesVisiteurs = async (req, res) => {
       visiteurs: resultats,
     });
   } catch (error) {
-    console.error(
-      "❌ Erreur statistiques visiteurs :",
-      error,
-    );
+    console.error("❌ Erreur statistiques visiteurs :", error);
 
     res.status(500).json({
       message: "Erreur lors du calcul des visiteurs",
     });
   }
 };
-
 
 // =====================================================
 // TOUS LES UTILISATEURS
@@ -528,9 +464,7 @@ const obtenirStatistiquesUtilisateurs = async (req, res) => {
       .select("username email createdAt updatedAt")
       .sort({ createdAt: -1 });
 
-    const userIds = utilisateurs.map(
-      (user) => user._id,
-    );
+    const userIds = utilisateurs.map((user) => user._id);
 
     const commandes = await Commande.aggregate([
       {
@@ -561,16 +495,11 @@ const obtenirStatistiquesUtilisateurs = async (req, res) => {
     ]);
 
     const commandesMap = new Map(
-      commandes.map((commande) => [
-        commande._id.toString(),
-        commande,
-      ]),
+      commandes.map((commande) => [commande._id.toString(), commande]),
     );
 
     const resultats = utilisateurs.map((user) => {
-      const statistiques = commandesMap.get(
-        user._id.toString(),
-      );
+      const statistiques = commandesMap.get(user._id.toString());
 
       return {
         userId: user._id,
@@ -583,14 +512,11 @@ const obtenirStatistiquesUtilisateurs = async (req, res) => {
 
         updatedAt: user.updatedAt,
 
-        nombreCommandes:
-          statistiques?.nombreCommandes || 0,
+        nombreCommandes: statistiques?.nombreCommandes || 0,
 
-        montantTotal:
-          statistiques?.montantTotal || 0,
+        montantTotal: statistiques?.montantTotal || 0,
 
-        derniereCommande:
-          statistiques?.derniereCommande || null,
+        derniereCommande: statistiques?.derniereCommande || null,
       };
     });
 
@@ -598,18 +524,13 @@ const obtenirStatistiquesUtilisateurs = async (req, res) => {
       utilisateurs: resultats,
     });
   } catch (error) {
-    console.error(
-      "❌ Erreur statistiques utilisateurs :",
-      error,
-    );
+    console.error("❌ Erreur statistiques utilisateurs :", error);
 
     res.status(500).json({
-      message:
-        "Erreur lors du calcul des statistiques utilisateurs",
+      message: "Erreur lors du calcul des statistiques utilisateurs",
     });
   }
 };
-
 
 // =====================================================
 // FIDÉLITÉ CLIENT
@@ -655,9 +576,7 @@ const obtenirStatistiquesFidelite = async (req, res) => {
       },
     ]);
 
-    const clientIds = clients.map(
-      (client) => client._id,
-    );
+    const clientIds = clients.map((client) => client._id);
 
     const utilisateurs = await User.find({
       _id: {
@@ -666,67 +585,48 @@ const obtenirStatistiquesFidelite = async (req, res) => {
     }).select("username email");
 
     const utilisateursMap = new Map(
-      utilisateurs.map((user) => [
-        user._id.toString(),
-        user,
-      ]),
+      utilisateurs.map((user) => [user._id.toString(), user]),
     );
 
     const resultats = clients.map((client) => {
-      const utilisateur =
-        utilisateursMap.get(
-          client._id.toString(),
-        );
+      const utilisateur = utilisateursMap.get(client._id.toString());
 
-      const premiere =
-        client.premiereCommande
-          ? new Date(client.premiereCommande)
-          : null;
+      const premiere = client.premiereCommande
+        ? new Date(client.premiereCommande)
+        : null;
 
-      const derniere =
-        client.derniereCommande
-          ? new Date(client.derniereCommande)
-          : null;
+      const derniere = client.derniereCommande
+        ? new Date(client.derniereCommande)
+        : null;
 
       let joursClient = 0;
 
       if (premiere && derniere) {
         joursClient = Math.max(
           0,
-          Math.round(
-            (derniere - premiere) /
-              (1000 * 60 * 60 * 24),
-          ),
+          Math.round((derniere - premiere) / (1000 * 60 * 60 * 24)),
         );
       }
 
       return {
         userId: client._id,
 
-        username:
-          utilisateur?.username ||
-          "Utilisateur inconnu",
+        username: utilisateur?.username || "Utilisateur inconnu",
 
-        email:
-          utilisateur?.email || "",
+        email: utilisateur?.email || "",
 
-        nombreCommandes:
-          client.nombreCommandes,
+        nombreCommandes: client.nombreCommandes,
 
-        montantTotal:
-          client.montantTotal,
+        montantTotal: client.montantTotal,
 
         panierMoyen:
           client.nombreCommandes > 0
-            ? client.montantTotal /
-              client.nombreCommandes
+            ? client.montantTotal / client.nombreCommandes
             : 0,
 
-        premiereCommande:
-          client.premiereCommande,
+        premiereCommande: client.premiereCommande,
 
-        derniereCommande:
-          client.derniereCommande,
+        derniereCommande: client.derniereCommande,
 
         joursClient,
       };
@@ -736,18 +636,13 @@ const obtenirStatistiquesFidelite = async (req, res) => {
       clients: resultats,
     });
   } catch (error) {
-    console.error(
-      "❌ Erreur statistiques fidélité :",
-      error,
-    );
+    console.error("❌ Erreur statistiques fidélité :", error);
 
     res.status(500).json({
-      message:
-        "Erreur lors du calcul des statistiques de fidélité",
+      message: "Erreur lors du calcul des statistiques de fidélité",
     });
   }
 };
-
 
 module.exports = {
   enregistrerVisite,

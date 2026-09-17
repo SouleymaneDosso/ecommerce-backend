@@ -1210,3 +1210,271 @@ exports.adminRetirerLimiteLivreur = async (req, res) => {
     });
   }
 };
+
+// =====================================================
+// ADMIN — STATISTIQUES DES COMMANDES DE LIVRAISON
+// =====================================================
+
+exports.adminStatistiquesCommandes = async (req, res) => {
+  try {
+    // =====================================================
+    // STATISTIQUES GLOBALES
+    // =====================================================
+
+    const statistiques = await Commandeapi.aggregate([
+      {
+        $group: {
+          _id: "$livraison.statut",
+          nombre: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const statsMap = {};
+
+    statistiques.forEach((item) => {
+      statsMap[item._id || "NOT_STARTED"] = item.nombre;
+    });
+
+    const totalCommandes = await Commandeapi.countDocuments();
+
+    const sansRecherche = statsMap.NOT_STARTED || 0;
+
+    const rechercheEnCours = statsMap.SEARCHING || 0;
+
+    const demandesEnvoyees = statsMap.REQUESTED || 0;
+
+    const acceptees = statsMap.ACCEPTED || 0;
+
+    const recuperation = statsMap.PICKING_UP || 0;
+
+    const enLivraison = statsMap.IN_DELIVERY || 0;
+
+    const livrees = statsMap.DELIVERED || 0;
+
+    const annulees = statsMap.CANCELLED || 0;
+
+    // =====================================================
+    // STATISTIQUES PAR LIVREUR
+    // =====================================================
+
+    const statistiquesLivreurs = await Commandeapi.aggregate([
+      {
+        $match: {
+          "livraison.livreurId": {
+            $ne: null,
+          },
+        },
+      },
+
+      {
+        $group: {
+          _id: "$livraison.livreurId",
+
+          totalAttribuees: {
+            $sum: 1,
+          },
+
+          acceptees: {
+            $sum: {
+              $cond: [
+                {
+                  $in: [
+                    "$livraison.statut",
+                    [
+                      "ACCEPTED",
+                      "PICKING_UP",
+                      "IN_DELIVERY",
+                      "DELIVERED",
+                    ],
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+
+          recuperation: {
+            $sum: {
+              $cond: [
+                {
+                  $eq: [
+                    "$livraison.statut",
+                    "PICKING_UP",
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+
+          enLivraison: {
+            $sum: {
+              $cond: [
+                {
+                  $eq: [
+                    "$livraison.statut",
+                    "IN_DELIVERY",
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+
+          livrees: {
+            $sum: {
+              $cond: [
+                {
+                  $eq: [
+                    "$livraison.statut",
+                    "DELIVERED",
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+
+          annulees: {
+            $sum: {
+              $cond: [
+                {
+                  $eq: [
+                    "$livraison.statut",
+                    "CANCELLED",
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+
+      {
+        $sort: {
+          acceptees: -1,
+        },
+      },
+    ]);
+
+    // =====================================================
+    // RÉCUPÉRER LES INFORMATIONS DES LIVREURS
+    // =====================================================
+
+    const livreurIds = statistiquesLivreurs.map(
+      (item) => item._id,
+    );
+
+    const livreurs = await Livreur.find({
+      _id: {
+        $in: livreurIds,
+      },
+    })
+      .select(
+        "_id username email telephone statut actif bloque",
+      )
+      .lean();
+
+    const livreursMap = new Map();
+
+    livreurs.forEach((livreur) => {
+      livreursMap.set(
+        livreur._id.toString(),
+        livreur,
+      );
+    });
+
+    const parLivreur = statistiquesLivreurs.map(
+      (item) => {
+        const livreur = livreursMap.get(
+          item._id.toString(),
+        );
+
+        return {
+          livreurId: item._id,
+
+          username:
+            livreur?.username || "Livreur inconnu",
+
+          email:
+            livreur?.email || "",
+
+          telephone:
+            livreur?.telephone || "",
+
+          statut:
+            livreur?.statut || "OFFLINE",
+
+          actif:
+            livreur?.actif ?? false,
+
+          bloque:
+            livreur?.bloque ?? false,
+
+          totalAttribuees:
+            item.totalAttribuees,
+
+          acceptees:
+            item.acceptees,
+
+          recuperation:
+            item.recuperation,
+
+          enLivraison:
+            item.enLivraison,
+
+          livrees:
+            item.livrees,
+
+          annulees:
+            item.annulees,
+        };
+      },
+    );
+
+    // =====================================================
+    // RÉPONSE
+    // =====================================================
+
+    return res.status(200).json({
+      statistiques: {
+        totalCommandes,
+
+        sansRecherche,
+
+        rechercheEnCours,
+
+        demandesEnvoyees,
+
+        acceptees,
+
+        recuperation,
+
+        enLivraison,
+
+        livrees,
+
+        annulees,
+      },
+
+      parLivreur,
+    });
+  } catch (error) {
+    console.error(
+      "ADMIN STATISTIQUES COMMANDES ERROR:",
+      error,
+    );
+
+    return res.status(500).json({
+      message:
+        "Erreur serveur lors du chargement des statistiques de livraison",
+    });
+  }
+};

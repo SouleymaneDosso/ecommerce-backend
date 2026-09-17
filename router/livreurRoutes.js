@@ -97,6 +97,11 @@ router.get(
   authAdmin,
   livreurController.adminGetLivreurs,
 );
+router.get(
+  "/admin/statistiques-commandes",
+  authAdmin,
+  livreurController.adminStatistiquesCommandes,
+);
 
 router.put(
   "/admin/:id/bloquer",

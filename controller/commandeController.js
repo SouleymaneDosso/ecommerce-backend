@@ -199,11 +199,15 @@ const getCommandeById = async (req, res) => {
     }
 
     const commandeData = commande.toObject();
-    
+
     if (commandeData.livraison) {
       commandeData.livraison.livreur = commandeData.livraison.livreurId || null;
     }
-
+    console.log("🔎 COMMANDE GET ID :", commande._id);
+    console.log(
+      "🔎 LIVREUR APRÈS POPULATE :",
+      commandeData.livraison?.livreurId,
+    );
     return res.status(200).json({
       commande: commandeData,
     });

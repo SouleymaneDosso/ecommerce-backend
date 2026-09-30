@@ -85,6 +85,22 @@ exports.creerConversation = async (req, res) => {
       utilisateur.type === "livreur" &&
       livreurId.toString() === utilisateur.id.toString();
 
+    console.log("========== CHAT LIVREUR ==========");
+    console.log("utilisateur :", utilisateur);
+    console.log("commandeId :", commandeId);
+    console.log("clientId commande :", clientId);
+    console.log("livreurId commande :", livreurId);
+    console.log("livreurId connecté :", utilisateur.id);
+    console.log(
+      "comparaison livreur :",
+      livreurId?.toString(),
+      "===",
+      utilisateur.id?.toString(),
+    );
+    console.log("estClient :", estClient);
+    console.log("estLivreur :", estLivreur);
+    console.log("==================================");
+
     if (!estClient && !estLivreur) {
       return res.status(403).json({
         message: "Vous ne participez pas à cette commande.",
@@ -434,9 +450,7 @@ exports.supprimerMessage = async (req, res) => {
     // VÉRIFIER QUE C'EST SON MESSAGE
     // ---------------------------------------------
 
-    if (
-      message.expediteur.id.toString() !== utilisateur.id.toString()
-    ) {
+    if (message.expediteur.id.toString() !== utilisateur.id.toString()) {
       return res.status(403).json({
         message: "Vous ne pouvez pas supprimer ce message.",
       });
@@ -453,8 +467,7 @@ exports.supprimerMessage = async (req, res) => {
     // ---------------------------------------------
 
     if (conversation.messages.length > 0) {
-      const dernier =
-        conversation.messages[conversation.messages.length - 1];
+      const dernier = conversation.messages[conversation.messages.length - 1];
 
       conversation.derniermessage = dernier.message;
     } else {

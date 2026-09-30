@@ -1,5 +1,5 @@
 const Conversation = require("../models/conversation");
-const Commandeapi = require("../models/commandeapi");
+const Commandeapi = require("../models/paiementmodel");
 
 // =====================================================
 // UTILITAIRE : RÉCUPÉRER L'UTILISATEUR CONNECTÉ

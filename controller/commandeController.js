@@ -185,6 +185,8 @@ const creerCommande = async (req, res) => {
    ========================= */
 const getCommandeById = async (req, res) => {
   try {
+
+    console.log("🚨 GET COMMANDE APPELÉ :", req.params.id);
     const { id } = req.params;
 
     const commande = await Commandeapi.findById(id).populate({
@@ -199,15 +201,11 @@ const getCommandeById = async (req, res) => {
     }
 
     const commandeData = commande.toObject();
-
+    
     if (commandeData.livraison) {
       commandeData.livraison.livreur = commandeData.livraison.livreurId || null;
     }
-    console.log("🔎 COMMANDE GET ID :", commande._id);
-    console.log(
-      "🔎 LIVREUR APRÈS POPULATE :",
-      commandeData.livraison?.livreurId,
-    );
+
     return res.status(200).json({
       commande: commandeData,
     });

@@ -30,17 +30,11 @@ router.put(
 // Créer une commande (le userId vient du token)
 router.post("/commandes", authClient, creerCommande);
 
-// Récupérer une commande par ID (vérifie que c'est bien le client qui la possède)
-router.get("/commandes/:id", authClient, async (req, res) => {
-  const { id } = req.params;
-  const commande = await Commandeapi.findById(id).populate("panier.produitId");
-  if (!commande)
-    return res.status(404).json({ message: "Commande introuvable" });
-  if (commande.client.userId.toString() !== req.auth.userId) {
-    return res.status(403).json({ message: "Accès refusé" });
-  }
-  res.status(200).json(commande);
-});
+router.get(
+  "/commandes/:id",
+  authClient,
+  getCommandeById,
+);
 
 // Soumettre un paiement semi-manuel (vérifie que la commande appartient au client)
 router.post(

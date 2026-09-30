@@ -23,6 +23,7 @@ const userSchema = new mongoose.Schema(
       minlength: 6,
     },
 
+
     // 🔐 Reset password
     resetPasswordToken: {
       type: String,
@@ -34,7 +35,7 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 /* =========================

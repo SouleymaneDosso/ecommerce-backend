@@ -28,6 +28,7 @@ const livreurSchema = new mongoose.Schema(
       trim: true,
     },
 
+
     /* =========================
        MOT DE PASSE
        ========================= */

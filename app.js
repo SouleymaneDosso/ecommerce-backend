@@ -22,6 +22,7 @@ const videoRoutes = require("./router/video");
 const livreurRoutes = require("./router/livreurRoutes");
 const precommandeRoutes = require("./router/precommandeRoutes");
 const statistiquesRoutes = require("./router/statistiquesRoutes");
+const conversationRoutes = require("./router/conversationRoutes");
 // ===============================
 // DATABASE
 // ===============================
@@ -81,6 +82,7 @@ app.use("/api/videos", videoRoutes);
 app.use("/api/livreurs", livreurRoutes);
 app.use("/api/precommandes", precommandeRoutes);
 app.use("/api/admin/statistiques", statistiquesRoutes);
+app.use("/api/conversations", conversationRoutes);
 // ===============================
 // GESTION ERREURS
 // ===============================

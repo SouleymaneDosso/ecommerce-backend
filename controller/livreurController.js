@@ -297,20 +297,17 @@ exports.mettreAJourLocalisation = async (req, res) => {
     const io = req.app.get("io");
 
     if (io && livreur.commandeActuelle) {
-      io.to(`commande:${livreur.commandeActuelle}`).emit(
-        "livreur_position",
-        {
-          commandeId: livreur.commandeActuelle.toString(),
+      io.to(`commande:${livreur.commandeActuelle}`).emit("livreur_position", {
+        commandeId: livreur.commandeActuelle.toString(),
 
-          livreurId: livreur._id.toString(),
+        livreurId: livreur._id.toString(),
 
-          latitude: lat,
+        latitude: lat,
 
-          longitude: lng,
+        longitude: lng,
 
-          derniereMiseAJour: maintenant,
-        },
-      );
+        derniereMiseAJour: maintenant,
+      });
     }
 
     return res.status(200).json({
@@ -388,19 +385,15 @@ exports.accepterCommande = async (req, res) => {
       const finJour = new Date();
       finJour.setHours(23, 59, 59, 999);
 
-      const nombreCoursesAujourdHui =
-        await Commandeapi.countDocuments({
-          "livraison.livreurId": livreur._id,
-          createdAt: {
-            $gte: debutJour,
-            $lte: finJour,
-          },
-        });
+      const nombreCoursesAujourdHui = await Commandeapi.countDocuments({
+        "livraison.livreurId": livreur._id,
+        createdAt: {
+          $gte: debutJour,
+          $lte: finJour,
+        },
+      });
 
-      if (
-        nombreCoursesAujourdHui >=
-        livreur.limiteCoursesParJour
-      ) {
+      if (nombreCoursesAujourdHui >= livreur.limiteCoursesParJour) {
         return res.status(403).json({
           message: `Vous avez atteint votre limite de ${livreur.limiteCoursesParJour} course(s) pour aujourd'hui.`,
           limite: livreur.limiteCoursesParJour,
@@ -445,6 +438,11 @@ exports.accepterCommande = async (req, res) => {
       },
     );
 
+    console.log(
+      "✅ LIVREUR ENREGISTRÉ DANS COMMANDE :",
+      commande?.livraison?.livreurId,
+    );
+
     if (!commande) {
       return res.status(409).json({
         message:
@@ -474,13 +472,12 @@ exports.accepterCommande = async (req, res) => {
         },
       };
 
-      io.to(
-        `user:${commande.client.userId.toString()}`,
-      ).emit("commande_update", notification);
+      io.to(`user:${commande.client.userId.toString()}`).emit(
+        "commande_update",
+        notification,
+      );
 
-      io.to(
-        `commande:${commande._id}`,
-      ).emit("commande_update", notification);
+      io.to(`commande:${commande._id}`).emit("commande_update", notification);
     }
 
     return res.status(200).json({
@@ -519,8 +516,7 @@ exports.rechercherLivreur = async (req, res) => {
 
     if (
       !commande.client?.userId ||
-      commande.client.userId.toString() !==
-        req.auth.userId.toString()
+      commande.client.userId.toString() !== req.auth.userId.toString()
     ) {
       return res.status(403).json({
         message: "Cette commande ne vous appartient pas",
@@ -532,16 +528,16 @@ exports.rechercherLivreur = async (req, res) => {
     // =================================================
 
     const commandeAutorisee =
-  commande.statusCommande === "CONFIRMED" ||
-  commande.statusCommande === "PAID";
+      commande.statusCommande === "CONFIRMED" ||
+      commande.statusCommande === "PAID";
 
-if (!commandeAutorisee) {
-  return res.status(403).json({
-    message:
-      "La livraison ne peut pas être demandée avant la confirmation du paiement par l'administrateur. Veuillez patienter.",
-    statusCommande: commande.statusCommande,
-  });
-}
+    if (!commandeAutorisee) {
+      return res.status(403).json({
+        message:
+          "La livraison ne peut pas être demandée avant la confirmation du paiement par l'administrateur. Veuillez patienter.",
+        statusCommande: commande.statusCommande,
+      });
+    }
 
     // =================================================
     // RECHERCHE UNE SEULE FOIS
@@ -565,8 +561,7 @@ if (!commandeAutorisee) {
     ) {
       commande.totalProduits = commande.panier.reduce(
         (total, item) =>
-          total +
-          Number(item.prix || 0) * Number(item.quantite || 0),
+          total + Number(item.prix || 0) * Number(item.quantite || 0),
         0,
       );
     }
@@ -676,8 +671,7 @@ exports.commencerRecuperation = async (req, res) => {
 
     if (
       !commande.livraison?.livreurId ||
-      commande.livraison.livreurId.toString() !==
-        req.livreur._id.toString()
+      commande.livraison.livreurId.toString() !== req.livreur._id.toString()
     ) {
       return res.status(403).json({
         message: "Cette commande ne vous est pas attribuée",
@@ -690,8 +684,7 @@ exports.commencerRecuperation = async (req, res) => {
 
     if (commande.livraison.statut !== "ACCEPTED") {
       return res.status(400).json({
-        message:
-          "La commande ne peut pas commencer la récupération",
+        message: "La commande ne peut pas commencer la récupération",
 
         statut: commande.livraison.statut,
       });
@@ -758,8 +751,7 @@ exports.recupererCommande = async (req, res) => {
 
     if (
       !commande.livraison?.livreurId ||
-      commande.livraison.livreurId.toString() !==
-        req.livreur._id.toString()
+      commande.livraison.livreurId.toString() !== req.livreur._id.toString()
     ) {
       return res.status(403).json({
         message: "Cette commande ne vous est pas attribuée",
@@ -768,8 +760,7 @@ exports.recupererCommande = async (req, res) => {
 
     if (commande.livraison.statut !== "PICKING_UP") {
       return res.status(400).json({
-        message:
-          "La commande n'est pas en cours de récupération",
+        message: "La commande n'est pas en cours de récupération",
         statut: commande.livraison.statut,
       });
     }
@@ -817,13 +808,12 @@ exports.recupererCommande = async (req, res) => {
         livreurId: req.livreur._id.toString(),
       };
 
-      io.to(
-        `user:${commande.client.userId.toString()}`,
-      ).emit("commande_update", notification);
+      io.to(`user:${commande.client.userId.toString()}`).emit(
+        "commande_update",
+        notification,
+      );
 
-      io.to(
-        `commande:${commande._id}`,
-      ).emit("commande_update", notification);
+      io.to(`commande:${commande._id}`).emit("commande_update", notification);
     }
 
     return res.status(200).json({
@@ -858,8 +848,7 @@ exports.livrerCommande = async (req, res) => {
 
     if (
       !commande.livraison?.livreurId ||
-      commande.livraison.livreurId.toString() !==
-        req.livreur._id.toString()
+      commande.livraison.livreurId.toString() !== req.livreur._id.toString()
     ) {
       return res.status(403).json({
         message: "Cette commande ne vous est pas attribuée",
@@ -868,8 +857,7 @@ exports.livrerCommande = async (req, res) => {
 
     if (commande.livraison.statut !== "IN_DELIVERY") {
       return res.status(400).json({
-        message:
-          "Cette commande n'est pas en cours de livraison",
+        message: "Cette commande n'est pas en cours de livraison",
         statut: commande.livraison.statut,
       });
     }
@@ -891,8 +879,7 @@ exports.livrerCommande = async (req, res) => {
 
     if (
       livreur.commandeActuelle &&
-      livreur.commandeActuelle.toString() ===
-        commande._id.toString()
+      livreur.commandeActuelle.toString() === commande._id.toString()
     ) {
       livreur.commandeActuelle = null;
     }
@@ -911,13 +898,12 @@ exports.livrerCommande = async (req, res) => {
         livreurId: livreur._id.toString(),
       };
 
-      io.to(
-        `user:${commande.client.userId.toString()}`,
-      ).emit("commande_update", notification);
+      io.to(`user:${commande.client.userId.toString()}`).emit(
+        "commande_update",
+        notification,
+      );
 
-      io.to(
-        `commande:${commande._id}`,
-      ).emit("commande_update", notification);
+      io.to(`commande:${commande._id}`).emit("commande_update", notification);
     }
 
     return res.status(200).json({
@@ -943,8 +929,7 @@ exports.adminGetLivreurs = async (req, res) => {
       .populate({
         path: "commandeActuelle",
 
-        select:
-          "_id statusCommande livraison client total totalProduits",
+        select: "_id statusCommande livraison client total totalProduits",
       })
       .sort({ createdAt: -1 })
       .lean();
@@ -963,15 +948,14 @@ exports.adminGetLivreurs = async (req, res) => {
 
     const livreursAvecStats = await Promise.all(
       livreurs.map(async (livreur) => {
-        const coursesAujourdHui =
-          await Commandeapi.countDocuments({
-            "livraison.livreurId": livreur._id,
+        const coursesAujourdHui = await Commandeapi.countDocuments({
+          "livraison.livreurId": livreur._id,
 
-            createdAt: {
-              $gte: debutJour,
-              $lte: finJour,
-            },
-          });
+          createdAt: {
+            $gte: debutJour,
+            $lte: finJour,
+          },
+        });
 
         return {
           ...livreur,
@@ -1014,8 +998,7 @@ exports.adminBloquerLivreur = async (req, res) => {
 
     livreur.bloque = true;
 
-    livreur.raisonRestriction =
-      raison || "Compte bloqué par l'administrateur";
+    livreur.raisonRestriction = raison || "Compte bloqué par l'administrateur";
 
     await livreur.save();
 
@@ -1025,8 +1008,7 @@ exports.adminBloquerLivreur = async (req, res) => {
       io.emit("livreur_admin_update", {
         livreurId: livreur._id.toString(),
         bloque: true,
-        limiteCoursesParJour:
-          livreur.limiteCoursesParJour,
+        limiteCoursesParJour: livreur.limiteCoursesParJour,
         statut: livreur.statut,
       });
     }
@@ -1067,8 +1049,7 @@ exports.adminDebloquerLivreur = async (req, res) => {
       io.emit("livreur_admin_update", {
         livreurId: livreur._id.toString(),
         bloque: false,
-        limiteCoursesParJour:
-          livreur.limiteCoursesParJour,
+        limiteCoursesParJour: livreur.limiteCoursesParJour,
         statut: livreur.statut,
       });
     }
@@ -1096,11 +1077,7 @@ exports.adminLimiterLivreur = async (req, res) => {
 
     const { limite } = req.body;
 
-    if (
-      limite === undefined ||
-      limite === null ||
-      limite === ""
-    ) {
+    if (limite === undefined || limite === null || limite === "") {
       return res.status(400).json({
         message: "La limite de courses est obligatoire",
       });
@@ -1108,13 +1085,9 @@ exports.adminLimiterLivreur = async (req, res) => {
 
     const nouvelleLimite = Number(limite);
 
-    if (
-      !Number.isInteger(nouvelleLimite) ||
-      nouvelleLimite < 0
-    ) {
+    if (!Number.isInteger(nouvelleLimite) || nouvelleLimite < 0) {
       return res.status(400).json({
-        message:
-          "La limite doit être un nombre entier supérieur ou égal à 0",
+        message: "La limite doit être un nombre entier supérieur ou égal à 0",
       });
     }
 
@@ -1140,8 +1113,7 @@ exports.adminLimiterLivreur = async (req, res) => {
 
         actif: livreur.actif,
 
-        limiteCoursesParJour:
-          livreur.limiteCoursesParJour,
+        limiteCoursesParJour: livreur.limiteCoursesParJour,
 
         statut: livreur.statut,
       });
@@ -1281,12 +1253,7 @@ exports.adminStatistiquesCommandes = async (req, res) => {
                 {
                   $in: [
                     "$livraison.statut",
-                    [
-                      "ACCEPTED",
-                      "PICKING_UP",
-                      "IN_DELIVERY",
-                      "DELIVERED",
-                    ],
+                    ["ACCEPTED", "PICKING_UP", "IN_DELIVERY", "DELIVERED"],
                   ],
                 },
                 1,
@@ -1299,10 +1266,7 @@ exports.adminStatistiquesCommandes = async (req, res) => {
             $sum: {
               $cond: [
                 {
-                  $eq: [
-                    "$livraison.statut",
-                    "PICKING_UP",
-                  ],
+                  $eq: ["$livraison.statut", "PICKING_UP"],
                 },
                 1,
                 0,
@@ -1314,10 +1278,7 @@ exports.adminStatistiquesCommandes = async (req, res) => {
             $sum: {
               $cond: [
                 {
-                  $eq: [
-                    "$livraison.statut",
-                    "IN_DELIVERY",
-                  ],
+                  $eq: ["$livraison.statut", "IN_DELIVERY"],
                 },
                 1,
                 0,
@@ -1329,10 +1290,7 @@ exports.adminStatistiquesCommandes = async (req, res) => {
             $sum: {
               $cond: [
                 {
-                  $eq: [
-                    "$livraison.statut",
-                    "DELIVERED",
-                  ],
+                  $eq: ["$livraison.statut", "DELIVERED"],
                 },
                 1,
                 0,
@@ -1344,10 +1302,7 @@ exports.adminStatistiquesCommandes = async (req, res) => {
             $sum: {
               $cond: [
                 {
-                  $eq: [
-                    "$livraison.statut",
-                    "CANCELLED",
-                  ],
+                  $eq: ["$livraison.statut", "CANCELLED"],
                 },
                 1,
                 0,
@@ -1368,76 +1323,53 @@ exports.adminStatistiquesCommandes = async (req, res) => {
     // RÉCUPÉRER LES INFORMATIONS DES LIVREURS
     // =====================================================
 
-    const livreurIds = statistiquesLivreurs.map(
-      (item) => item._id,
-    );
+    const livreurIds = statistiquesLivreurs.map((item) => item._id);
 
     const livreurs = await Livreur.find({
       _id: {
         $in: livreurIds,
       },
     })
-      .select(
-        "_id username email telephone statut actif bloque",
-      )
+      .select("_id username email telephone statut actif bloque")
       .lean();
 
     const livreursMap = new Map();
 
     livreurs.forEach((livreur) => {
-      livreursMap.set(
-        livreur._id.toString(),
-        livreur,
-      );
+      livreursMap.set(livreur._id.toString(), livreur);
     });
 
-    const parLivreur = statistiquesLivreurs.map(
-      (item) => {
-        const livreur = livreursMap.get(
-          item._id.toString(),
-        );
+    const parLivreur = statistiquesLivreurs.map((item) => {
+      const livreur = livreursMap.get(item._id.toString());
 
-        return {
-          livreurId: item._id,
+      return {
+        livreurId: item._id,
 
-          username:
-            livreur?.username || "Livreur inconnu",
+        username: livreur?.username || "Livreur inconnu",
 
-          email:
-            livreur?.email || "",
+        email: livreur?.email || "",
 
-          telephone:
-            livreur?.telephone || "",
+        telephone: livreur?.telephone || "",
 
-          statut:
-            livreur?.statut || "OFFLINE",
+        statut: livreur?.statut || "OFFLINE",
 
-          actif:
-            livreur?.actif ?? false,
+        actif: livreur?.actif ?? false,
 
-          bloque:
-            livreur?.bloque ?? false,
+        bloque: livreur?.bloque ?? false,
 
-          totalAttribuees:
-            item.totalAttribuees,
+        totalAttribuees: item.totalAttribuees,
 
-          acceptees:
-            item.acceptees,
+        acceptees: item.acceptees,
 
-          recuperation:
-            item.recuperation,
+        recuperation: item.recuperation,
 
-          enLivraison:
-            item.enLivraison,
+        enLivraison: item.enLivraison,
 
-          livrees:
-            item.livrees,
+        livrees: item.livrees,
 
-          annulees:
-            item.annulees,
-        };
-      },
-    );
+        annulees: item.annulees,
+      };
+    });
 
     // =====================================================
     // RÉPONSE
@@ -1467,10 +1399,7 @@ exports.adminStatistiquesCommandes = async (req, res) => {
       parLivreur,
     });
   } catch (error) {
-    console.error(
-      "ADMIN STATISTIQUES COMMANDES ERROR:",
-      error,
-    );
+    console.error("ADMIN STATISTIQUES COMMANDES ERROR:", error);
 
     return res.status(500).json({
       message:

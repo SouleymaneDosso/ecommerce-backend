@@ -85,8 +85,6 @@ exports.creerConversation = async (req, res) => {
       utilisateur.type === "livreur" &&
       livreurId.toString() === utilisateur.id.toString();
 
-      
-
     if (!estClient && !estLivreur) {
       return res.status(403).json({
         message: "Vous ne participez pas à cette commande.",
@@ -221,6 +219,25 @@ exports.envoyerMessage = async (req, res) => {
 
     const messageAjoute =
       conversation.messages[conversation.messages.length - 1];
+
+    // ---------------------------------------------
+    // NOTIFICATION SOCKET
+    // ---------------------------------------------
+
+    const io = req.app.get("io");
+
+    if (io) {
+      const destinataireId =
+        utilisateur.type === "client"
+          ? conversation.livreurId
+          : conversation.clientId;
+
+      io.to(`user:${destinataireId}`).emit("nouveau_message", {
+        conversationId: conversation._id,
+        commandeId: conversation.commandeId,
+        message: messageAjoute,
+      });
+    }
 
     return res.status(201).json({
       message: "Message envoyé avec succès.",
@@ -436,9 +453,7 @@ exports.supprimerMessage = async (req, res) => {
     // VÉRIFIER QUE C'EST SON MESSAGE
     // ---------------------------------------------
 
-    if (
-      message.expediteur.id.toString() !== utilisateur.id.toString()
-    ) {
+    if (message.expediteur.id.toString() !== utilisateur.id.toString()) {
       return res.status(403).json({
         message: "Vous ne pouvez pas supprimer ce message.",
       });
@@ -455,8 +470,7 @@ exports.supprimerMessage = async (req, res) => {
     // ---------------------------------------------
 
     if (conversation.messages.length > 0) {
-      const dernier =
-        conversation.messages[conversation.messages.length - 1];
+      const dernier = conversation.messages[conversation.messages.length - 1];
 
       conversation.derniermessage = dernier.message;
     } else {

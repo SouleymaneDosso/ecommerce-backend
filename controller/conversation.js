@@ -370,7 +370,10 @@ exports.marquerMessagesCommeLus = async (req, res) => {
     conversation.messages.forEach((msg) => {
       // On marque uniquement les messages
       // envoyés par l'autre personne.
-      if (msg.expediteur.type !== utilisateur.type && !msg.lu) {
+      if (
+        msg.expediteur.id.toString() !== utilisateur.id.toString() &&
+        !msg.lu
+      ) {
         msg.lu = true;
         nombreModifie++;
       }
@@ -378,22 +381,22 @@ exports.marquerMessagesCommeLus = async (req, res) => {
 
     await conversation.save();
     // ---------------------------------------------
-// NOTIFICATION SOCKET : MESSAGES LUS
-// ---------------------------------------------
+    // NOTIFICATION SOCKET : MESSAGES LUS
+    // ---------------------------------------------
 
-const io = req.app.get("io");
+    const io = req.app.get("io");
 
-if (io && nombreModifie > 0) {
-  const expediteurId =
-    utilisateur.type === "client"
-      ? conversation.livreurId
-      : conversation.clientId;
+    if (io && nombreModifie > 0) {
+      const expediteurId =
+        utilisateur.type === "client"
+          ? conversation.livreurId
+          : conversation.clientId;
 
-  io.to(`user:${expediteurId}`).emit("messages_lus", {
-    conversationId: conversation._id,
-    commandeId: conversation.commandeId,
-  });
-}
+      io.to(`user:${expediteurId}`).emit("messages_lus", {
+        conversationId: conversation._id,
+        commandeId: conversation.commandeId,
+      });
+    }
 
     return res.status(200).json({
       message: "Messages marqués comme lus.",
@@ -497,22 +500,19 @@ exports.supprimerMessage = async (req, res) => {
     await conversation.save();
 
     // ---------------------------------------------
-// NOTIFICATION SOCKET : MESSAGE SUPPRIMÉ
-// ---------------------------------------------
+    // NOTIFICATION SOCKET : MESSAGE SUPPRIMÉ
+    // ---------------------------------------------
 
-const io = req.app.get("io");
+    const io = req.app.get("io");
 
-if (io) {
-  io.to(`commande:${conversation.commandeId}`).emit(
-    "message_supprime",
-    {
-      conversationId: conversation._id,
-      commandeId: conversation.commandeId,
-      messageId,
-      derniermessage: conversation.derniermessage,
+    if (io) {
+      io.to(`commande:${conversation.commandeId}`).emit("message_supprime", {
+        conversationId: conversation._id,
+        commandeId: conversation.commandeId,
+        messageId,
+        derniermessage: conversation.derniermessage,
+      });
     }
-  );
-}
 
     return res.status(200).json({
       message: "Message supprimé avec succès.",
@@ -520,6 +520,73 @@ if (io) {
     });
   } catch (error) {
     console.error("SUPPRIMER MESSAGE ERROR:", error);
+
+    return res.status(500).json({
+      message: "Erreur serveur.",
+    });
+  }
+};
+
+exports.compterMessagesNonLus = async (req, res) => {
+  try {
+    const utilisateur = getUtilisateurConnecte(req);
+
+    if (!utilisateur) {
+      return res.status(401).json({
+        message: "Utilisateur non authentifié.",
+      });
+    }
+
+    const { conversationId } = req.params;
+
+    // ---------------------------------------------
+    // RÉCUPÉRER LA CONVERSATION
+    // ---------------------------------------------
+
+    const conversation = await Conversation.findById(conversationId);
+
+    if (!conversation) {
+      return res.status(404).json({
+        message: "Conversation introuvable.",
+      });
+    }
+
+    // ---------------------------------------------
+    // VÉRIFIER QUE L'UTILISATEUR PARTICIPE
+    // ---------------------------------------------
+
+    const estClient =
+      utilisateur.type === "client" &&
+      conversation.clientId.toString() === utilisateur.id.toString();
+
+    const estLivreur =
+      utilisateur.type === "livreur" &&
+      conversation.livreurId.toString() === utilisateur.id.toString();
+
+    if (!estClient && !estLivreur) {
+      return res.status(403).json({
+        message: "Vous ne faites pas partie de cette conversation.",
+      });
+    }
+
+    // ---------------------------------------------
+    // COMPTER UNIQUEMENT LES MESSAGES
+    // ENVOYÉS PAR L'AUTRE PERSONNE ET NON LUS
+    // ---------------------------------------------
+
+    const nombreNonLus = conversation.messages.filter((msg) => {
+      const estMonMessage =
+        msg.expediteur.id.toString() === utilisateur.id.toString();
+
+      return !estMonMessage && !msg.lu;
+    }).length;
+
+    return res.status(200).json({
+      conversationId: conversation._id,
+      nombreNonLus,
+    });
+  } catch (error) {
+    console.error("COMPTER MESSAGES NON LUS ERROR:", error);
 
     return res.status(500).json({
       message: "Erreur serveur.",

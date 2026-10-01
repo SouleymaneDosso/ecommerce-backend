@@ -10,20 +10,22 @@ const conversationController = require("../controller/conversation");
 // CRÉER / RÉCUPÉRER UNE CONVERSATION
 // =====================================================
 
-router.post(
-  "/",
-  authConversation,
-  conversationController.creerConversation
-);
+router.post("/", authConversation, conversationController.creerConversation);
 
 // =====================================================
 // RÉCUPÉRER LES MESSAGES
 // =====================================================
 
 router.get(
+  "/:conversationId/messages/unread-count",
+  authConversation,
+  conversationController.compterMessagesNonLus,
+);
+
+router.get(
   "/:conversationId/messages",
   authConversation,
-  conversationController.recupererMessages
+  conversationController.recupererMessages,
 );
 
 // =====================================================
@@ -33,7 +35,7 @@ router.get(
 router.post(
   "/:conversationId/messages",
   authConversation,
-  conversationController.envoyerMessage
+  conversationController.envoyerMessage,
 );
 
 // =====================================================
@@ -43,7 +45,7 @@ router.post(
 router.patch(
   "/:conversationId/messages/read",
   authConversation,
-  conversationController.marquerMessagesCommeLus
+  conversationController.marquerMessagesCommeLus,
 );
 
 // =====================================================
@@ -53,7 +55,7 @@ router.patch(
 router.delete(
   "/:conversationId/messages/:messageId",
   authConversation,
-  conversationController.supprimerMessage
+  conversationController.supprimerMessage,
 );
 
 module.exports = router;

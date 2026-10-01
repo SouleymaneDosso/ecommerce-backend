@@ -235,7 +235,7 @@ exports.envoyerMessage = async (req, res) => {
       io.to(`user:${destinataireId}`).emit("nouveau_message", {
         conversationId: conversation._id,
         commandeId: conversation.commandeId,
-        message: messageAjoute,
+        nouveauMessage: messageAjoute,
       });
     }
 
@@ -377,6 +377,23 @@ exports.marquerMessagesCommeLus = async (req, res) => {
     });
 
     await conversation.save();
+    // ---------------------------------------------
+// NOTIFICATION SOCKET : MESSAGES LUS
+// ---------------------------------------------
+
+const io = req.app.get("io");
+
+if (io && nombreModifie > 0) {
+  const expediteurId =
+    utilisateur.type === "client"
+      ? conversation.livreurId
+      : conversation.clientId;
+
+  io.to(`user:${expediteurId}`).emit("messages_lus", {
+    conversationId: conversation._id,
+    commandeId: conversation.commandeId,
+  });
+}
 
     return res.status(200).json({
       message: "Messages marqués comme lus.",
@@ -478,6 +495,24 @@ exports.supprimerMessage = async (req, res) => {
     }
 
     await conversation.save();
+
+    // ---------------------------------------------
+// NOTIFICATION SOCKET : MESSAGE SUPPRIMÉ
+// ---------------------------------------------
+
+const io = req.app.get("io");
+
+if (io) {
+  io.to(`commande:${conversation.commandeId}`).emit(
+    "message_supprime",
+    {
+      conversationId: conversation._id,
+      commandeId: conversation.commandeId,
+      messageId,
+      derniermessage: conversation.derniermessage,
+    }
+  );
+}
 
     return res.status(200).json({
       message: "Message supprimé avec succès.",

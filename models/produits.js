@@ -49,6 +49,11 @@ const schemaproduits = new mongoose.Schema(
     },
 
     hero: { type: Boolean, default: false },
+    bestSeller: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     genre: {
       type: String,
       enum: ["homme", "femme", "enfant"],

@@ -65,6 +65,7 @@ exports.sauvegarderProduits = async (req, res) => {
       categorie: req.body.categorie,
       badge: req.body.badge || null,
       hero: req.body.hero === "true",
+      bestSeller: req.body.bestSeller === "true",
 
       // NOUVEAUX CHAMPS
       precommande: req.body.precommande === "true",
@@ -159,6 +160,7 @@ exports.updateProduit = async (req, res) => {
       "badge",
       "details",
       "hero",
+      "bestSeller",
       "disponible",
       "precommande",
       "montantDepot",
@@ -172,7 +174,12 @@ exports.updateProduit = async (req, res) => {
           produit[field] = safeParse(req.body[field], []);
         } else if (field === "details") {
           produit[field] = safeParse(req.body[field], {});
-        } else if (field === "hero" || field === "precommande" || field === "disponible") {
+        } else if (
+          field === "hero" ||
+          field === "bestSeller" ||
+          field === "precommande" ||
+          field === "disponible"
+        ) {
           produit[field] = req.body[field] === "true";
         } else if (
           field === "price" ||
@@ -411,6 +418,26 @@ exports.getRecommendations = async (req, res) => {
     res.json(recommandations.map((p) => p.toJSON()));
   } catch (err) {
     console.error("🔥 getRecommendations:", err.message);
+    res.status(500).json({ message: "Erreur serveur" });
+  }
+};
+
+/* ===============================
+   GET BEST SELLERS
+================================ */
+exports.getBestSellers = async (req, res) => {
+  try {
+    const produits = await Produits.find({
+      bestSeller: true,
+      disponible: true,
+    })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .lean({ virtuals: true });
+
+    res.status(200).json(produits);
+  } catch (err) {
+    console.error("🔥 getBestSellers:", err.message);
     res.status(500).json({ message: "Erreur serveur" });
   }
 };

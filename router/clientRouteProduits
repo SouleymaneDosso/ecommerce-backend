@@ -8,6 +8,7 @@ router.get("/", mesProduits.getProduits);
 router.get("/recommandations/:id", mesProduits.getRecommendations);
 router.get("/:id", mesProduits.getProduitById);
 router.get("/new", mesProduits.getNewProduits);
+router.get("/best-sellers", mesProduits.getBestSellers);
 // 🔹 Commentaires
 router.get("/:id/commentaires", mesProduits.getCommentaires); 
 router.post("/:id/commentaires", authClient, mesProduits.ajouterCommentaire); 

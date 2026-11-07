@@ -422,7 +422,6 @@ exports.getRecommendations = async (req, res) => {
   }
 };
 
-
 /* ===============================
    GET BEST SELLERS
 ================================ */
@@ -439,16 +438,8 @@ exports.getBestSellers = async (req, res) => {
       .limit(10)
       .lean({ virtuals: true });
 
-    console.log(
-      "✅ Best Sellers récupérés :",
-      produits.length
-    );
-
     return res.status(200).json(produits);
-
   } catch (err) {
-    console.error("🔥 getBestSellers :", err);
-
     return res.status(500).json({
       message: "Erreur récupération Best Sellers",
       error: err.message,

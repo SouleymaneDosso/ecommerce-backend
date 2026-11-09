@@ -49,7 +49,8 @@ exports.createReturnRequest = async (req, res) => {
   let uploadedPhotos = [];
 
   try {
-    const { commandeId, solutionSouhaitee, description } = req.body;
+    const { commandeId, solutionSouhaitee, description, numeroWhatsApp } =
+      req.body;
     const items = parseItems(req.body.items);
 
     if (!mongoose.isValidObjectId(commandeId)) {
@@ -127,7 +128,13 @@ exports.createReturnRequest = async (req, res) => {
         });
       }
     }
+    if (typeof numeroWhatsApp !== "string" || !numeroWhatsApp.trim()) {
+      return res.status(400).json({
+        message: "Veuillez renseigner votre numéro WhatsApp.",
+      });
+    }
 
+    const whatsapp = numeroWhatsApp.trim();
     // Les informations de chaque article proviennent exclusivement de la commande.
     const returnItems = items.map((item) => {
       const index = Number(item.panierIndex);
@@ -158,6 +165,7 @@ exports.createReturnRequest = async (req, res) => {
       items: returnItems,
       description: typeof description === "string" ? description.trim() : "",
       solutionSouhaitee,
+      numeroWhatsApp: whatsapp,
       photos: uploadedPhotos,
     });
 
@@ -206,7 +214,7 @@ exports.getMyReturnRequestById = async (req, res) => {
     const demande = await ReturnRequest.findOne({
       _id: req.params.id,
       clientId: req.auth.userId,
-    }).populate("commandeId", "statusCommande total createdAt");
+    }).populate("commandeId", "statusCommande numeroCommande total createdAt");
 
     if (!demande) {
       return res.status(404).json({ message: "Demande introuvable" });
@@ -266,7 +274,7 @@ exports.getAllReturnRequests = async (req, res) => {
       .populate("clientId", "username email")
       .populate(
         "commandeId",
-        "numeroCommande total statusCommande createdAt client",
+        "numeroCommande numeroCommande total statusCommande createdAt client",
       )
       .sort({ createdAt: -1 });
 

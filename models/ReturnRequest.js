@@ -42,17 +42,28 @@ const ReturnRequestSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+
     items: {
       type: [ReturnItemSchema],
       required: true,
     },
+
+    numeroWhatsApp: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
     description: { type: String, default: "" },
+
     solutionSouhaitee: {
       type: String,
       enum: ["REMBOURSEMENT", "ECHANGE"],
       required: true,
     },
+
     photos: [ReturnPhotoSchema],
+
     statut: {
       type: String,
       enum: [
@@ -65,12 +76,15 @@ const ReturnRequestSchema = new mongoose.Schema(
       default: "PENDING",
       index: true,
     },
+
     commentaireAdmin: { type: String, default: "" },
+
     traitePar: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Admin",
       default: null,
     },
+
     traiteLe: { type: Date, default: null },
     completedAt: { type: Date, default: null },
   },

@@ -188,7 +188,7 @@ exports.getMyReturnRequests = async (req, res) => {
     const demandes = await ReturnRequest.find({
       clientId: req.auth.userId,
     })
-      .populate("commandeId", "statusCommande total createdAt")
+      .populate("commandeId", "numeroCommande statusCommande total createdAt")
       .sort({ createdAt: -1 });
 
     return res.json(demandes);

@@ -1,4 +1,3 @@
-
 const mongoose = require("mongoose");
 const { Readable } = require("stream");
 
@@ -54,7 +53,9 @@ exports.createReturnRequest = async (req, res) => {
     const items = parseItems(req.body.items);
 
     if (!mongoose.isValidObjectId(commandeId)) {
-      return res.status(400).json({ message: "Identifiant de commande invalide" });
+      return res
+        .status(400)
+        .json({ message: "Identifiant de commande invalide" });
     }
 
     if (!["REMBOURSEMENT", "ECHANGE"].includes(solutionSouhaitee)) {
@@ -62,7 +63,9 @@ exports.createReturnRequest = async (req, res) => {
     }
 
     if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ message: "Sélectionne au moins un article" });
+      return res
+        .status(400)
+        .json({ message: "Sélectionne au moins un article" });
     }
 
     if (items.length > 20) {
@@ -88,7 +91,10 @@ exports.createReturnRequest = async (req, res) => {
 
     if (
       indexes.some(
-        (index) => !Number.isInteger(index) || index < 0 || index >= commande.panier.length,
+        (index) =>
+          !Number.isInteger(index) ||
+          index < 0 ||
+          index >= commande.panier.length,
       ) ||
       new Set(indexes).size !== indexes.length
     ) {
@@ -168,7 +174,9 @@ exports.createReturnRequest = async (req, res) => {
       return res.status(400).json({ message: "Format des articles invalide" });
     }
 
-    return res.status(500).json({ message: "Erreur lors de la création du retour" });
+    return res
+      .status(500)
+      .json({ message: "Erreur lors de la création du retour" });
   }
 };
 
@@ -256,7 +264,10 @@ exports.getAllReturnRequests = async (req, res) => {
 
     const demandes = await ReturnRequest.find(filter)
       .populate("clientId", "username email")
-      .populate("commandeId", "total statusCommande createdAt")
+      .populate(
+        "commandeId",
+        "numeroCommande total statusCommande createdAt client",
+      )
       .sort({ createdAt: -1 });
 
     return res.json(demandes);

@@ -20,7 +20,7 @@ const {
 router.post(
   "/returns",
   authClient,
-  upload.array("photos", 5),
+  upload.array("photos", 20),
   createReturnRequest,
 );
 

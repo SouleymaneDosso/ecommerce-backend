@@ -104,6 +104,8 @@ const creerCommande = async (req, res) => {
       username: client.username || "Client",
       numero: client.numero || 0,
     });
+    // Génération du numéro de commande
+    nouvelleCommande.numeroCommande = `NUMA-${new Date().getFullYear()}-${nouvelleCommande._id.toString().slice(-8).toUpperCase()}`;
 
     // ==========================================
     // 5. CRÉER LES ÉTAPES DE PAIEMENT
@@ -185,10 +187,12 @@ const creerCommande = async (req, res) => {
    ========================= */
 const getCommandeById = async (req, res) => {
   try {
-
     const { id } = req.params;
 
-    const commande = await Commandeapi.findById(id).populate({
+    const commande = await Commandeapi.findOne({
+      _id: id,
+      "client.userId": req.auth.userId,
+    }).populate({
       path: "livraison.livreurId",
       select: "username telephone statut localisation commandeActuelle",
     });
@@ -200,8 +204,7 @@ const getCommandeById = async (req, res) => {
     }
 
     const commandeData = commande.toObject();
-    
-    
+
     if (commandeData.livraison) {
       commandeData.livraison.livreur = commandeData.livraison.livreurId || null;
     }
@@ -909,7 +912,46 @@ const mettreAJourLocalisationClient = async (req, res) => {
     });
   }
 };
+/* =========================
+   RECHERCHER UNE COMMANDE
+   PAR SON NUMÉRO (CLIENT)
+   ========================= */
 
+const rechercherCommandeParNumero = async (req, res) => {
+  try {
+    const numeroCommande = req.params.numeroCommande.trim().toUpperCase();
+
+    if (!numeroCommande) {
+      return res.status(400).json({
+        message: "Numéro de commande requis",
+      });
+    }
+
+    const commande = await Commandeapi.findOne({
+      numeroCommande,
+      "client.userId": req.auth.userId,
+    }).select(
+      "numeroCommande client panier total totalProduits fraisLivraison statusCommande createdAt",
+    );
+
+    if (!commande) {
+      return res.status(404).json({
+        message: "Commande introuvable. Vérifiez votre numéro de commande.",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Commande retrouvée",
+      commande,
+    });
+  } catch (error) {
+    console.error("RECHERCHE COMMANDE ERROR:", error);
+
+    return res.status(500).json({
+      message: "Erreur lors de la recherche de la commande",
+    });
+  }
+};
 module.exports = {
   creerCommande,
   getCommandeById,
@@ -921,4 +963,5 @@ module.exports = {
   confirmerCommandeCOD,
   marquerCommeLivre,
   mettreAJourLocalisationClient,
+  rechercherCommandeParNumero,
 };

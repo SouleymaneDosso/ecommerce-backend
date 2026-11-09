@@ -23,6 +23,7 @@ const livreurRoutes = require("./router/livreurRoutes");
 const precommandeRoutes = require("./router/precommandeRoutes");
 const statistiquesRoutes = require("./router/statistiquesRoutes");
 const conversationRoutes = require("./router/conversationRoutes");
+const returnRoutes = require("./router/returnRoutes");
 // ===============================
 // DATABASE
 // ===============================
@@ -83,6 +84,7 @@ app.use("/api/livreurs", livreurRoutes);
 app.use("/api/precommandes", precommandeRoutes);
 app.use("/api/admin/statistiques", statistiquesRoutes);
 app.use("/api/conversations", conversationRoutes);
+app.use("/api", returnRoutes);
 // ===============================
 // GESTION ERREURS
 // ===============================

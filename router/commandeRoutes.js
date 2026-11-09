@@ -13,6 +13,7 @@ const {
   marquerCommeLivre,
   marquerCommeExpedie,
   mettreAJourLocalisationClient,
+  rechercherCommandeParNumero,
 } = require("../controller/commandeController");
 
 const authClient = require("../authentification/authClient");
@@ -20,6 +21,12 @@ const authClient = require("../authentification/authClient");
 /* =========================
    ROUTES CLIENT SÉCURISÉES
    ========================= */
+
+router.get(
+  "/commandes/recherche/:numeroCommande",
+  authClient,
+  rechercherCommandeParNumero,
+);
 
 router.put(
   "/commandes/:id/localisation-client",
@@ -30,11 +37,7 @@ router.put(
 // Créer une commande (le userId vient du token)
 router.post("/commandes", authClient, creerCommande);
 
-router.get(
-  "/commandes/:id",
-  authClient,
-  getCommandeById,
-);
+router.get("/commandes/:id", authClient, getCommandeById);
 
 // Soumettre un paiement semi-manuel (vérifie que la commande appartient au client)
 router.post(

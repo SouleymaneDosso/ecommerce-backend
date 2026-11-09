@@ -150,6 +150,13 @@ const CommandeSchema = new mongoose.Schema(
       },
     },
 
+    numeroCommande: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+    },
+
     /* ---------- PANIER ---------- */
     panier: {
       type: [PanierItemSchema],
@@ -278,5 +285,6 @@ const CommandeSchema = new mongoose.Schema(
 CommandeSchema.index({ "client.userId": 1 });
 CommandeSchema.index({ statusCommande: 1 });
 CommandeSchema.index({ "paiementsRecus._id": 1 });
+CommandeSchema.index({ numeroCommande: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model("Commandeapi", CommandeSchema);

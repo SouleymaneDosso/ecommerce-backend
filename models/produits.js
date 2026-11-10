@@ -297,11 +297,12 @@ const schemaproduits = new mongoose.Schema(
   },
 );
 
+
 // ==============================
 // VALIDATION PRIX COMPARATIF
 // ==============================
 
-schemaproduits.pre("validate", function (next) {
+schemaproduits.pre("validate", async function () {
   if (this.prixAvant !== null && this.prixAvant !== undefined) {
     if (this.prixAvant <= this.price) {
       this.invalidate(
@@ -317,9 +318,8 @@ schemaproduits.pre("validate", function (next) {
       "Une promotion doit avoir un ancien prix.",
     );
   }
-
-  next();
 });
+
 
 // ==============================
 // VIRTUAL : POURCENTAGE DE RÉDUCTION

@@ -1147,6 +1147,49 @@ const modifierStockProduit = (produit, item, sens) => {
 };
 
 
+const appliquerStockCommande = async (commande, session, sens) => {
+  if (sens !== -1 && sens !== 1) {
+    throw creerErreur("Sens de modification du stock invalide", 400);
+  }
+
+  if (!Array.isArray(commande.panier) || commande.panier.length === 0) {
+    throw creerErreur("Le panier de la commande est vide", 400);
+  }
+
+  const produitsIds = [
+    ...new Set(
+      commande.panier.map((item) => String(item.produitId))
+    ),
+  ];
+
+  const produits = await Product.find({
+    _id: { $in: produitsIds },
+  }).session(session);
+
+  const produitsMap = new Map(
+    produits.map((produit) => [
+      String(produit._id),
+      produit,
+    ])
+  );
+
+  for (const item of commande.panier) {
+    const produit = produitsMap.get(String(item.produitId));
+
+    if (!produit) {
+      throw creerErreur(
+        `Produit introuvable : ${item.nom}`,
+        404
+      );
+    }
+
+    modifierStockProduit(produit, item, sens);
+
+    await produit.save({ session });
+  }
+};
+
+
 // ==========================================
 // CRÉATION COMMANDE
 // ==========================================

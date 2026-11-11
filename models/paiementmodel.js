@@ -285,6 +285,10 @@ stockRestitue: {
   type: Boolean,
   default: false,
 },
+commentaireAnnulation: {
+  type: String,
+  default: "",
+},
   },
   {
     timestamps: true,

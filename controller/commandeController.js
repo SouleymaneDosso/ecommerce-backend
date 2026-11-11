@@ -1045,110 +1045,107 @@ const mapNonVide = (map) => {
 // GESTION DU STOCK
 // ==========================================
 
+
 const modifierStockProduit = (produit, item, sens) => {
   const quantite = Number(item.quantite);
 
   if (!Number.isInteger(quantite) || quantite <= 0) {
-    throw creerErreur(`Quantité invalide pour ${item.nom}`);
+    throw creerErreur("Quantité invalide", 400);
   }
 
   const variations = produit.stockParVariation;
   const possedeVariations = mapNonVide(variations);
 
-  // Vérification du stock global
-  const stockGlobal = Number(produit.stock || 0);
-
-  if (sens === -1 && stockGlobal < quantite) {
-    throw creerErreur(`Stock insuffisant pour ${item.nom}`, 409);
-  }
-
-  // Si le produit possède des variations, la couleur et la taille sont obligatoires.
+  // CAS 1 : PRODUIT AVEC VARIATIONS
   if (possedeVariations) {
     if (!item.couleur || !item.taille) {
       throw creerErreur(
-        `Couleur et taille obligatoires pour le produit ${item.nom}`,
+        `Veuillez choisir une couleur et une taille pour ${item.nom}`,
+        400
       );
     }
 
-    const couleur = String(item.couleur).trim().toLowerCase();
-    const taille = String(item.taille).trim().toLowerCase();
+    const normaliser = (valeur) =>
+      String(valeur).trim().toLowerCase();
 
-    if (
-      !couleur ||
-      !taille ||
-      couleur.includes(".") ||
-      couleur.includes("$") ||
-      taille.includes(".") ||
-      taille.includes("$")
-    ) {
-      throw creerErreur(`Variation invalide pour ${item.nom}`);
-    }
+    // Retrouver la vraie clé, sans tenir compte des majuscules
+    const trouverCle = (map, valeur) => {
+      if (!map) return undefined;
 
-    const colorMap = lireValeurMap(variations, couleur);
+      const entrees = map instanceof Map
+        ? [...map.entries()]
+        : Object.entries(map);
 
-    if (!colorMap) {
+      const entree = entrees.find(
+        ([cle]) => normaliser(cle) === normaliser(valeur)
+      );
+
+      return entree ? entree[0] : undefined;
+    };
+
+    const couleurCle = trouverCle(variations, item.couleur);
+
+    if (couleurCle === undefined) {
       throw creerErreur(
-        `Variation ${item.couleur} introuvable pour ${item.nom}`,
-        409,
+        `Couleur ${item.couleur} introuvable pour ${item.nom}`,
+        409
       );
     }
 
-    const stockVariation = Number(lireValeurMap(colorMap, taille) || 0);
+    const taillesMap = lireValeurMap(variations, couleurCle);
+
+    const tailleCle = trouverCle(taillesMap, item.taille);
+
+    if (tailleCle === undefined) {
+      throw creerErreur(
+        `Taille ${item.taille} introuvable pour ${item.nom}`,
+        409
+      );
+    }
+
+    const stockVariation = Number(
+      lireValeurMap(taillesMap, tailleCle) || 0
+    );
 
     if (sens === -1 && stockVariation < quantite) {
       throw creerErreur(
-        `Stock insuffisant pour ${item.nom} (${item.couleur} / ${item.taille})`,
-        409,
+        `Stock insuffisant pour ${item.nom} (${item.couleur} / ${item.taille}). Stock disponible : ${stockVariation}`,
+        409
       );
     }
 
-    definirValeurMap(
-      colorMap,
-      taille,
-      stockVariation + sens * quantite,
-    );
+    const nouveauStock = stockVariation + sens * quantite;
 
-    definirValeurMap(variations, couleur, colorMap);
-
-    produit.markModified("stockParVariation");
-  }
-
-  // Stock global : décrémentation ou restitution
-  produit.stock = stockGlobal + sens * quantite;
-
-  if (produit.stock < 0) {
-    throw creerErreur(`Stock insuffisant pour ${item.nom}`, 409);
-  }
-};
-
-// Réserve ou restitue le stock de tous les articles dans une transaction.
-const appliquerStockCommande = async (commande, session, sens) => {
-  const produitIds = [
-    ...new Set(commande.panier.map((item) => item.produitId.toString())),
-  ];
-
-  const produits = await Product.find({
-    _id: { $in: produitIds },
-  }).session(session);
-
-  const produitsMap = new Map(
-    produits.map((produit) => [produit._id.toString(), produit]),
-  );
-
-  for (const item of commande.panier) {
-    const produit = produitsMap.get(item.produitId.toString());
-
-    if (!produit) {
-      throw creerErreur(`Produit introuvable : ${item.nom}`, 409);
+    if (nouveauStock < 0) {
+      throw creerErreur("Stock insuffisant", 409);
     }
 
-    modifierStockProduit(produit, item, sens);
+    definirValeurMap(taillesMap, tailleCle, nouveauStock);
+    definirValeurMap(variations, couleurCle, taillesMap);
+
+    // Important : on ne touche pas au stock global ici.
+    return;
   }
 
-  for (const produit of produitsMap.values()) {
-    await produit.save({ session });
+  // CAS 2 : PRODUIT SANS VARIATIONS
+  const stockGlobal = Number(produit.stock || 0);
+
+  if (sens === -1 && stockGlobal < quantite) {
+    throw creerErreur(
+      `Stock insuffisant pour ${item.nom}. Stock disponible : ${stockGlobal}`,
+      409
+    );
   }
+
+  const nouveauStock = stockGlobal + sens * quantite;
+
+  if (nouveauStock < 0) {
+    throw creerErreur("Stock insuffisant", 409);
+  }
+
+  produit.stock = nouveauStock;
 };
+
 
 // ==========================================
 // CRÉATION COMMANDE

@@ -273,6 +273,17 @@ const CommandeSchema = new mongoose.Schema(
       ],
       default: "PENDING",
     },
+    // Suivi de la réservation du stock
+stockReserve: {
+  type: Boolean,
+  default: false,
+},
+
+// Empêche de restituer le stock plusieurs fois
+stockRestitue: {
+  type: Boolean,
+  default: false,
+},
   },
   {
     timestamps: true,

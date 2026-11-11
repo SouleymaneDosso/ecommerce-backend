@@ -676,11 +676,9 @@ const marquerCommeLivre = async (req, res) => {
 
     if (!commande)
       return res.status(404).json({ message: "Commande introuvable" });
-    console.log("MODE PAIEMENT :", commande.modePaiement);
-    console.log("STATUT COMMANDE :", commande.statusCommande);
 
     // 🔒 Sécurité
-    if (commande.modePaiement !== "cod") {
+    if (commande.modePaiement !== "full") {
       return res.status(400).json({ message: "Réservé aux commandes COD" });
     }
 

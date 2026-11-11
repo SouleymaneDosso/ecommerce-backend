@@ -270,6 +270,7 @@ const CommandeSchema = new mongoose.Schema(
         "CONFIRMED",
         "DELIVERED",
         "SHIPPED",
+         "CANCELLED",
       ],
       default: "PENDING",
     },

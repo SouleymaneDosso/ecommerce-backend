@@ -364,7 +364,7 @@ const confirmerPaiementAdmin = async (req, res) => {
   const session = await Commandeapi.startSession();
   session.startTransaction();
 
-  try {
+  try { 
     const { id } = req.params;
     const { paiementRecuId, adminComment } = req.body;
 
@@ -678,7 +678,7 @@ const marquerCommeLivre = async (req, res) => {
       return res.status(404).json({ message: "Commande introuvable" });
 
     // 🔒 Sécurité
-    if (commande.modePaiement !== "cod") {
+    if (commande.modePaiement !== "installments") {
       return res.status(400).json({ message: "Réservé aux commandes COD" });
     }
 

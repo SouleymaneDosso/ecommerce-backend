@@ -555,6 +555,12 @@ exports.getRecommendations = async (req, res) => {
       categorie: produit.categorie,
       _id: { $ne: produit._id },
       price: { $gte: min, $lte: max },
+
+      // Exclure les produits en précommande
+      precommande: { $ne: true },
+
+      // Afficher uniquement les produits disponibles
+      disponible: true,
     })
       .sort({ createdAt: -1 })
       .limit(4)

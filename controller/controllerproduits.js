@@ -54,6 +54,104 @@ const getErrorStatus = (error) => {
    CREATE PRODUIT
 ================================ */
 
+// exports.sauvegarderProduits = async (req, res) => {
+//   if (!req.admin) {
+//     return res.status(401).json({
+//       message: "Admin non authentifié",
+//     });
+//   }
+
+//   try {
+//     if (!req.files || req.files.length === 0) {
+//       return res.status(400).json({
+//         message: "Au moins une image est requise",
+//       });
+//     }
+
+//     const mainIndex = Number(req.body.mainImageIndex) || 0;
+
+//     if (!isValidMainIndex(mainIndex, req.files.length)) {
+//       return res.status(400).json({
+//         message: "Index de l'image principale invalide",
+//       });
+//     }
+
+//     const images = req.files.map((file, index) => ({
+//       url: file.path,
+//       publicId: file.filename,
+//       isMain: index === mainIndex,
+//     }));
+
+//     const details = safeParse(req.body.details, {});
+
+//     const cleanDetails = {
+//       matiere: details.matiere,
+//       poids: details.poids,
+//       coupe: details.coupe,
+//       saison: details.saison,
+//       entretien: details.entretien,
+//       paysFabrication: details.paysFabrication,
+//     };
+
+//     const precommande = parseBoolean(req.body.precommande);
+
+//     const produit = await Produits.create({
+//       title: req.body.title,
+//       description: req.body.description,
+
+//       // Prix actuel
+//       price: parseOptionalNumber(req.body.price),
+
+//       // Ancien prix pour les promotions
+//       prixAvant: parseOptionalNumber(req.body.prixAvant),
+
+//       stock: parseOptionalNumber(req.body.stock) ?? 0,
+
+//       tailles: safeParse(req.body.tailles, []),
+//       couleurs: safeParse(req.body.couleurs, []),
+//       stockParVariation: safeParse(req.body.stockParVariation, {}),
+
+//       genre: req.body.genre,
+//       categorie: req.body.categorie,
+//       badge: req.body.badge || null,
+
+//       hero: parseBoolean(req.body.hero),
+//       bestSeller: parseBoolean(req.body.bestSeller),
+
+//       precommande,
+
+//       disponible:
+//         req.body.disponible !== undefined
+//           ? parseBoolean(req.body.disponible)
+//           : !precommande,
+
+//       montantDepot: parseOptionalNumber(req.body.montantDepot),
+
+//       dateDisponibilite: req.body.dateDisponibilite
+//         ? new Date(req.body.dateDisponibilite)
+//         : null,
+
+//       videoId: null,
+//       details: cleanDetails,
+//       images,
+//       userId: req.admin._id,
+//     });
+
+//     const produitAvecVirtuals = await Produits.findById(produit._id).lean({
+//       virtuals: true,
+//     });
+
+//     return res.status(201).json(produitAvecVirtuals);
+//   } catch (error) {
+//     console.error("❌ sauvegarderProduits:", error);
+
+//     return res.status(getErrorStatus(error)).json({
+//       message: error.message,
+//     });
+//   }
+// };
+
+
 exports.sauvegarderProduits = async (req, res) => {
   if (!req.admin) {
     return res.status(401).json({
@@ -61,8 +159,14 @@ exports.sauvegarderProduits = async (req, res) => {
     });
   }
 
+  let uploadedModelPublicId = null;
+
   try {
-    if (!req.files || req.files.length === 0) {
+    const fichiersImages = req.files?.images || [];
+    const fichier3D = req.files?.model3D?.[0] || null;
+
+    // Au moins une image reste obligatoire
+    if (fichiersImages.length === 0) {
       return res.status(400).json({
         message: "Au moins une image est requise",
       });
@@ -70,17 +174,50 @@ exports.sauvegarderProduits = async (req, res) => {
 
     const mainIndex = Number(req.body.mainImageIndex) || 0;
 
-    if (!isValidMainIndex(mainIndex, req.files.length)) {
+    if (!isValidMainIndex(mainIndex, fichiersImages.length)) {
       return res.status(400).json({
         message: "Index de l'image principale invalide",
       });
     }
 
-    const images = req.files.map((file, index) => ({
+    // Images classiques : CloudinaryStorage les a déjà envoyées
+    const images = fichiersImages.map((file, index) => ({
       url: file.path,
       publicId: file.filename,
       isMain: index === mainIndex,
     }));
+
+    // Modèle 3D : envoi du buffer vers Cloudinary
+    let model3D = null;
+
+    if (fichier3D) {
+      const resultat = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: "produits/modeles3D",
+            resource_type: "raw",
+            public_id: `${Date.now()}-${fichier3D.originalname.replace(/\.glb$/i, "")}`,
+          },
+          (error, result) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+
+        stream.end(fichier3D.buffer);
+      });
+
+      uploadedModelPublicId = resultat.public_id;
+
+      model3D = {
+        url: resultat.secure_url,
+        publicId: resultat.public_id,
+        format: "glb",
+      };
+    }
 
     const details = safeParse(req.body.details, {});
 
@@ -99,12 +236,8 @@ exports.sauvegarderProduits = async (req, res) => {
       title: req.body.title,
       description: req.body.description,
 
-      // Prix actuel
       price: parseOptionalNumber(req.body.price),
-
-      // Ancien prix pour les promotions
       prixAvant: parseOptionalNumber(req.body.prixAvant),
-
       stock: parseOptionalNumber(req.body.stock) ?? 0,
 
       tailles: safeParse(req.body.tailles, []),
@@ -132,8 +265,9 @@ exports.sauvegarderProduits = async (req, res) => {
         : null,
 
       videoId: null,
-      details: cleanDetails,
+      details,
       images,
+      model3D,
       userId: req.admin._id,
     });
 
@@ -142,8 +276,18 @@ exports.sauvegarderProduits = async (req, res) => {
     });
 
     return res.status(201).json(produitAvecVirtuals);
+
   } catch (error) {
     console.error("❌ sauvegarderProduits:", error);
+
+    // Nettoyage du modèle 3D si la création du produit échoue
+    if (uploadedModelPublicId) {
+      await cloudinary.uploader
+        .destroy(uploadedModelPublicId, { resource_type: "raw" })
+        .catch((cleanupError) => {
+          console.error("Erreur nettoyage modèle 3D:", cleanupError);
+        });
+    }
 
     return res.status(getErrorStatus(error)).json({
       message: error.message,
@@ -151,11 +295,165 @@ exports.sauvegarderProduits = async (req, res) => {
   }
 };
 
+
 /* ===============================
    UPDATE PRODUIT
 ================================ */
 
-exports.updateProduit = async (req, res) => {
+// exports.updateProduit = async (req, res) => {
+//   try {
+//     const produit = await Produits.findById(req.params.id);
+
+//     if (!produit) {
+//       return res.status(404).json({
+//         message: "Produit introuvable",
+//       });
+//     }
+
+//     const mainIndex =
+//       req.body.mainImageIndex !== undefined
+//         ? Number(req.body.mainImageIndex)
+//         : NaN;
+
+//     /* -------- SUPPRESSION IMAGES -------- */
+
+//     if (req.body.imagesToDelete) {
+//       const idsToDelete = safeParse(req.body.imagesToDelete, []);
+
+//       await Promise.all(
+//         produit.images
+//           .filter((img) => idsToDelete.includes(img.publicId))
+//           .map((img) => cloudinary.uploader.destroy(img.publicId)),
+//       );
+
+//       produit.images = produit.images.filter(
+//         (img) => !idsToDelete.includes(img.publicId),
+//       );
+//     }
+
+//     /* -------- AJOUT NOUVELLES IMAGES -------- */
+
+//     if (req.files && req.files.length > 0) {
+//       const newImages = req.files.map((file) => ({
+//         url: file.path,
+//         publicId: file.filename,
+//         isMain: false,
+//       }));
+
+//       produit.images.push(...newImages);
+//     }
+
+//     /* -------- IMAGE PRINCIPALE -------- */
+
+//     const totalImages = produit.images.length;
+
+//     if (isValidMainIndex(mainIndex, totalImages)) {
+//       produit.images.forEach((img, index) => {
+//         img.isMain = index === mainIndex;
+//       });
+//     }
+
+//     /* -------- AUTRES CHAMPS -------- */
+
+//     const champs = [
+//       "title",
+//       "description",
+//       "price",
+//       "prixAvant",
+//       "stock",
+//       "tailles",
+//       "couleurs",
+//       "stockParVariation",
+//       "genre",
+//       "categorie",
+//       "badge",
+//       "details",
+//       "hero",
+//       "bestSeller",
+//       "disponible",
+//       "precommande",
+//       "montantDepot",
+//       "dateDisponibilite",
+//       "videoId",
+//     ];
+
+//     champs.forEach((field) => {
+//       if (req.body[field] === undefined) return;
+
+//       if (["tailles", "couleurs", "stockParVariation"].includes(field)) {
+//         produit[field] = safeParse(
+//           req.body[field],
+//           field === "stockParVariation" ? {} : [],
+//         );
+//       } else if (field === "details") {
+//         produit[field] = safeParse(req.body[field], {});
+//       } else if (
+//         ["hero", "bestSeller", "precommande", "disponible"].includes(field)
+//       ) {
+//         produit[field] = parseBoolean(req.body[field]);
+//       } else if (
+//         ["price", "prixAvant", "stock", "montantDepot"].includes(field)
+//       ) {
+//         produit[field] = parseOptionalNumber(req.body[field]);
+//       } else if (field === "dateDisponibilite") {
+//         produit[field] =
+//           req.body[field] === "" ? null : new Date(req.body[field]);
+//       } else {
+//         produit[field] = req.body[field];
+//       }
+//     });
+
+//     // Déclenche les validations et les virtuals du modèle.
+//     await produit.save();
+
+//     return res.status(200).json(produit.toJSON());
+//   } catch (error) {
+//     console.error("❌ updateProduit:", error);
+
+//     return res.status(getErrorStatus(error)).json({
+//       message: error.message,
+//     });
+//   }
+// };
+
+// /* ===============================
+//    DELETE PRODUIT
+// ================================ */
+
+// exports.deleteProduit = async (req, res) => {
+//   try {
+//     const produit = await Produits.findById(req.params.id);
+
+//     if (!produit) {
+//       return res.status(404).json({
+//         message: "Produit introuvable",
+//       });
+//     }
+
+//     await Promise.all(
+//       produit.images.map((img) =>
+//         img.publicId
+//           ? cloudinary.uploader.destroy(img.publicId).catch(() => null)
+//           : null,
+//       ),
+//     );
+
+//     await produit.deleteOne();
+
+//     return res.json({
+//       message: "Produit supprimé avec succès",
+//     });
+//   } catch (error) {
+//     console.error("❌ deleteProduit:", error);
+
+//     return res.status(500).json({
+//       message: error.message,
+//     });
+//   }
+// };
+
+
+exports.deleteProduit = async (req, res) => {
   try {
     const produit = await Produits.findById(req.params.id);
 
@@ -164,6 +462,56 @@ exports.updateProduit = async (req, res) => {
         message: "Produit introuvable",
       });
     }
+
+    // Supprimer les images de Cloudinary
+    await Promise.all(
+      produit.images.map((img) =>
+        img.publicId
+          ? cloudinary.uploader.destroy(img.publicId)
+              .catch(() => null)
+          : null
+      )
+    );
+
+    // Supprimer le modèle 3D de Cloudinary
+    if (produit.model3D?.publicId) {
+      await cloudinary.uploader.destroy(
+        produit.model3D.publicId,
+        { resource_type: "raw" }
+      );
+    }
+
+    await produit.deleteOne();
+
+    return res.json({
+      message: "Produit supprimé avec succès",
+    });
+
+  } catch (error) {
+    console.error("❌ deleteProduit:", error);
+
+    return res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
+
+
+exports.updateProduit = async (req, res) => {
+  let uploadedModelPublicId = null;
+
+  try {
+    const produit = await Produits.findById(req.params.id);
+
+    if (!produit) {
+      return res.status(404).json({
+        message: "Produit introuvable",
+      });
+    }
+
+    const fichiersImages = req.files?.images || [];
+    const fichier3D = req.files?.model3D?.[0] || null;
 
     const mainIndex =
       req.body.mainImageIndex !== undefined
@@ -175,37 +523,86 @@ exports.updateProduit = async (req, res) => {
     if (req.body.imagesToDelete) {
       const idsToDelete = safeParse(req.body.imagesToDelete, []);
 
+      const imagesSupprimees = produit.images.filter(
+        (img) => idsToDelete.includes(img.publicId)
+      );
+
       await Promise.all(
-        produit.images
-          .filter((img) => idsToDelete.includes(img.publicId))
-          .map((img) => cloudinary.uploader.destroy(img.publicId)),
+        imagesSupprimees.map((img) =>
+          cloudinary.uploader.destroy(img.publicId)
+        )
       );
 
       produit.images = produit.images.filter(
-        (img) => !idsToDelete.includes(img.publicId),
+        (img) => !idsToDelete.includes(img.publicId)
       );
     }
 
     /* -------- AJOUT NOUVELLES IMAGES -------- */
 
-    if (req.files && req.files.length > 0) {
-      const newImages = req.files.map((file) => ({
-        url: file.path,
-        publicId: file.filename,
-        isMain: false,
-      }));
+    const newImages = fichiersImages.map((file) => ({
+      url: file.path,
+      publicId: file.filename,
+      isMain: false,
+    }));
 
-      produit.images.push(...newImages);
-    }
+    produit.images.push(...newImages);
 
     /* -------- IMAGE PRINCIPALE -------- */
 
-    const totalImages = produit.images.length;
-
-    if (isValidMainIndex(mainIndex, totalImages)) {
+    if (isValidMainIndex(mainIndex, produit.images.length)) {
       produit.images.forEach((img, index) => {
         img.isMain = index === mainIndex;
       });
+    }
+
+    /* -------- SUPPRESSION MODÈLE 3D -------- */
+
+    if (req.body.removeModel3D === "true") {
+      if (produit.model3D?.publicId) {
+        await cloudinary.uploader.destroy(
+          produit.model3D.publicId,
+          { resource_type: "raw" }
+        );
+      }
+
+      produit.model3D = null;
+    }
+
+    /* -------- AJOUT OU REMPLACEMENT MODÈLE 3D -------- */
+
+    if (fichier3D) {
+      const resultat = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: "produits/modeles3D",
+            resource_type: "raw",
+            public_id: `${Date.now()}-${fichier3D.originalname.replace(/\.glb$/i, "")}`,
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        );
+
+        stream.end(fichier3D.buffer);
+      });
+
+      uploadedModelPublicId = resultat.public_id;
+
+      // On supprime l'ancien modèle après l'envoi réussi du nouveau
+      if (produit.model3D?.publicId) {
+        await cloudinary.uploader.destroy(
+          produit.model3D.publicId,
+          { resource_type: "raw" }
+        );
+      }
+
+      produit.model3D = {
+        url: resultat.secure_url,
+        publicId: resultat.public_id,
+        format: "glb",
+      };
     }
 
     /* -------- AUTRES CHAMPS -------- */
@@ -238,7 +635,7 @@ exports.updateProduit = async (req, res) => {
       if (["tailles", "couleurs", "stockParVariation"].includes(field)) {
         produit[field] = safeParse(
           req.body[field],
-          field === "stockParVariation" ? {} : [],
+          field === "stockParVariation" ? {} : []
         );
       } else if (field === "details") {
         produit[field] = safeParse(req.body[field], {});
@@ -258,12 +655,21 @@ exports.updateProduit = async (req, res) => {
       }
     });
 
-    // Déclenche les validations et les virtuals du modèle.
     await produit.save();
 
     return res.status(200).json(produit.toJSON());
+
   } catch (error) {
     console.error("❌ updateProduit:", error);
+
+    // Nettoyage du nouveau modèle si la modification échoue
+    if (uploadedModelPublicId) {
+      await cloudinary.uploader
+        .destroy(uploadedModelPublicId, { resource_type: "raw" })
+        .catch((cleanupError) => {
+          console.error("Erreur nettoyage modèle 3D:", cleanupError);
+        });
+    }
 
     return res.status(getErrorStatus(error)).json({
       message: error.message,
@@ -271,41 +677,6 @@ exports.updateProduit = async (req, res) => {
   }
 };
 
-/* ===============================
-   DELETE PRODUIT
-================================ */
-
-exports.deleteProduit = async (req, res) => {
-  try {
-    const produit = await Produits.findById(req.params.id);
-
-    if (!produit) {
-      return res.status(404).json({
-        message: "Produit introuvable",
-      });
-    }
-
-    await Promise.all(
-      produit.images.map((img) =>
-        img.publicId
-          ? cloudinary.uploader.destroy(img.publicId).catch(() => null)
-          : null,
-      ),
-    );
-
-    await produit.deleteOne();
-
-    return res.json({
-      message: "Produit supprimé avec succès",
-    });
-  } catch (error) {
-    console.error("❌ deleteProduit:", error);
-
-    return res.status(500).json({
-      message: error.message,
-    });
-  }
-};
 
 /* ===============================
    GET PRODUITS

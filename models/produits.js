@@ -18,6 +18,19 @@ const imageSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const model3DSchema = new mongoose.Schema(
+  {
+    url: { type: String, required: true },
+    publicId: { type: String, required: true },
+    format: {
+      type: String,
+      enum: ["glb"],
+      default: "glb",
+    },
+  },
+  { _id: false },
+);
+
 const schemaproduits = new mongoose.Schema(
   {
     title: {
@@ -38,6 +51,11 @@ const schemaproduits = new mongoose.Schema(
         validator: (arr) => Array.isArray(arr) && arr.length > 0,
         message: "Au moins une image est requise",
       },
+    },
+
+    model3D: {
+      type: model3DSchema,
+      default: null,
     },
 
     userId: {
@@ -180,7 +198,6 @@ const schemaproduits = new mongoose.Schema(
   },
 );
 
-
 // ==============================
 // VALIDATION PRIX COMPARATIF
 // ==============================
@@ -196,30 +213,20 @@ schemaproduits.pre("validate", async function () {
   }
 
   if (this.badge === "promo" && this.prixAvant == null) {
-    this.invalidate(
-      "prixAvant",
-      "Une promotion doit avoir un ancien prix.",
-    );
+    this.invalidate("prixAvant", "Une promotion doit avoir un ancien prix.");
   }
 });
-
 
 // ==============================
 // VIRTUAL : POURCENTAGE DE RÉDUCTION
 // ==============================
 
 schemaproduits.virtual("pourcentageReduction").get(function () {
-  if (
-    this.prixAvant == null ||
-    !this.price ||
-    this.prixAvant <= this.price
-  ) {
+  if (this.prixAvant == null || !this.price || this.prixAvant <= this.price) {
     return 0;
   }
 
-  return Math.round(
-    ((this.prixAvant - this.price) / this.prixAvant) * 100,
-  );
+  return Math.round(((this.prixAvant - this.price) / this.prixAvant) * 100);
 });
 
 module.exports = mongoose.model("Produits", schemaproduits);

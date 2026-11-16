@@ -196,7 +196,7 @@ exports.sauvegarderProduits = async (req, res) => {
           {
             folder: "produits/modeles3D",
             resource_type: "raw",
-            public_id: `${Date.now()}-${fichier3D.originalname.replace(/\.glb$/i, "")}`,
+            public_id: `${Date.now()}-${fichier3D.originalname.replace(/\.glb$/i, "")}.glb`,
           },
           (error, result) => {
             if (error) {
@@ -577,7 +577,7 @@ exports.updateProduit = async (req, res) => {
           {
             folder: "produits/modeles3D",
             resource_type: "raw",
-            public_id: `${Date.now()}-${fichier3D.originalname.replace(/\.glb$/i, "")}`,
+           public_id: `${Date.now()}-${fichier3D.originalname.replace(/\.glb$/i, "")}.glb`,
           },
           (error, result) => {
             if (error) reject(error);
